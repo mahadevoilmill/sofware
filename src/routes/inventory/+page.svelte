@@ -14,6 +14,8 @@
   let quantity = $state<number>(0);
   let notes = $state<string>('');
   let transactionDate = $state<string>(new Date().toISOString().split('T')[0]);
+  let viewFromDate = $state<string>(new Date().toISOString().split('T')[0]);
+  let viewToDate = $state<string>(new Date().toISOString().split('T')[0]);
   let todayTransactions = $state<any[]>([]);
   let showExportForm = $state(false);
   let exportFromDate = $state<string>('');
@@ -22,7 +24,7 @@
 
   onMount(async () => {
     await fetchInventory();
-    await fetchTodayTransactions();
+    await fetchTransactions();
   });
 
   async function fetchInventory() {
@@ -30,17 +32,24 @@
     inventory = data || [];
   }
 
-  async function fetchTodayTransactions() {
-    const dateToFetch = transactionDate || new Date().toISOString().split('T')[0];
-    const { data } = await supabase
+  async function fetchTransactions() {
+    let query = supabase
       .from('inventory_transactions')
       .select(`
         *,
         inventory:inventory_id(item_name, unit)
       `)
-      .eq('transaction_date', dateToFetch)
+      .order('transaction_date', { ascending: false })
       .order('created_at', { ascending: false });
+
+    if (viewFromDate) {
+      query = query.gte('transaction_date', viewFromDate);
+    }
+    if (viewToDate) {
+      query = query.lte('transaction_date', viewToDate);
+    }
     
+    const { data } = await query;
     todayTransactions = data || [];
   }
 
@@ -100,7 +109,7 @@
 
       // Refresh data
       await fetchInventory();
-      await fetchTodayTransactions();
+      await fetchTransactions();
     }
   }
 
@@ -117,12 +126,14 @@
   }
 
   function formatDateDisplay() {
-    if (!transactionDate) return 'Today';
-    try {
-      return new Date(transactionDate + 'T00:00:00').toLocaleDateString();
-    } catch {
-      return transactionDate;
+    if (viewFromDate === viewToDate) {
+      try {
+        return new Date(viewFromDate + 'T00:00:00').toLocaleDateString();
+      } catch {
+        return viewFromDate;
+      }
     }
+    return `${viewFromDate} to ${viewToDate}`;
   }
 
   async function exportReport(e: Event) {
@@ -216,7 +227,7 @@
       .eq('id', transId);
 
     if (!error) {
-      await fetchTodayTransactions();
+      await fetchTransactions();
     }
   }
 </script>
@@ -309,9 +320,22 @@
     </div>
   {/if}
 
-  <!-- Today's Transactions -->
+  <!-- Filter and Transactions -->
   <div class="today-section">
-    <h3>Transactions for {formatDateDisplay()}</h3>
+    <div class="section-header">
+      <h3>Transactions for {formatDateDisplay()}</h3>
+      <div class="filter-range">
+        <div class="filter-group">
+          <label for="view-from">From</label>
+          <input type="date" id="view-from" bind:value={viewFromDate} onchange={fetchTransactions} />
+        </div>
+        <div class="filter-group">
+          <label for="view-to">To</label>
+          <input type="date" id="view-to" bind:value={viewToDate} onchange={fetchTransactions} />
+        </div>
+      </div>
+    </div>
+    
     {#if todayTransactions.length > 0}
       <div class="transactions-list">
         {#each todayTransactions as trans}
@@ -324,7 +348,10 @@
               {/if}
             </div>
             <div class="trans-info">
-              <span class="item-name">{trans.inventory.item_name}</span>
+              <div class="trans-meta">
+                <span class="item-name">{trans.inventory.item_name}</span>
+                <span class="trans-date">{new Date(trans.transaction_date).toLocaleDateString()}</span>
+              </div>
               <span class="qty-unit">{trans.quantity} {trans.inventory.unit}</span>
               {#if trans.notes}
                 <span class="notes">{trans.notes}</span>
@@ -345,7 +372,7 @@
         {/each}
       </div>
     {:else}
-      <p class="no-data">No transactions today</p>
+      <p class="no-data">No transactions found for this range</p>
     {/if}
   </div>
 
@@ -368,11 +395,11 @@
 
           <div class="stock-breakdown">
             <div class="breakdown-item in">
-              <span class="label">Today In</span>
+              <span class="label">In (Range)</span>
               <span class="value">+{summary.stockIn}</span>
             </div>
             <div class="breakdown-item out">
-              <span class="label">Today Out</span>
+              <span class="label">Out (Range)</span>
               <span class="value">-{summary.stockOut}</span>
             </div>
           </div>
@@ -543,11 +570,45 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
   }
 
-  .today-section h3 {
-    margin-top: 0;
-    color: #2c3e50;
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     border-bottom: 2px solid #ecf0f1;
     padding-bottom: 15px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+
+  .section-header h3 {
+    margin: 0;
+    color: #2c3e50;
+  }
+
+  .filter-range {
+    display: flex;
+    gap: 15px;
+  }
+
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .filter-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #7f8c8d;
+    text-transform: uppercase;
+  }
+
+  .filter-group input {
+    padding: 5px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 13px;
   }
 
   .transactions-list {
@@ -600,9 +661,23 @@
     gap: 4px;
   }
 
+  .trans-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
   .item-name {
     font-weight: 600;
     color: #2c3e50;
+  }
+
+  .trans-date {
+    font-size: 11px;
+    color: #95a5a6;
+    background: #eee;
+    padding: 2px 6px;
+    border-radius: 10px;
   }
 
   .qty-unit {

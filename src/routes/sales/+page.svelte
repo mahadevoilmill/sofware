@@ -21,6 +21,7 @@
     product_name: '',
     quantity: 0,
     rate: 0,
+    gst_rate: 5,
     payment_mode: 'Cash',
     payment_details: '',
     sale_date: new Date().toISOString().split('T')[0]
@@ -51,7 +52,7 @@
         .from('sales')
         .select(`
           *,
-          customers:customer_id(name, address, mobile, gst_number),
+          customers:customer_id(name, address, mobile, gst_number, state_name, state_code),
           inventory:product_item(item_name)
         `)
         .order('created_at', { ascending: false });
@@ -95,9 +96,10 @@
       return;
     }
 
-    const cgst = (newSale.quantity * newSale.rate * 0.025);
-    const sgst = (newSale.quantity * newSale.rate * 0.025);
-    const total = (newSale.quantity * newSale.rate) + cgst + sgst;
+    const totalBase = newSale.quantity * newSale.rate;
+    const cgst = (totalBase * (newSale.gst_rate / 2)) / 100;
+    const sgst = (totalBase * (newSale.gst_rate / 2)) / 100;
+    const total = totalBase + cgst + sgst;
 
     // Get next invoice number by finding the highest existing number
     const { data: existingInvoices } = await supabase
@@ -170,6 +172,7 @@
         product_name: '',
         quantity: 0, 
         rate: 0,
+        gst_rate: 5,
         payment_mode: 'Cash',
         payment_details: '',
         sale_date: new Date().toISOString().split('T')[0]
@@ -197,7 +200,7 @@
     return 'INR ' + str;
   }
 
-  function generatePDF(sale: any) {
+  async function generatePDF(sale: any) {
     try {
       const doc = new jsPDF({
         orientation: 'p',
@@ -209,6 +212,39 @@
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 10;
       const contentWidth = pageWidth - (margin * 2);
+
+      // Prepare Seller Data
+      const seller = companySettings || {
+        company_name: 'MAHADEV OIL MILL',
+        address: '902 NAGARDAS NI KHADKI, VASAD, MO NO. 9879944395',
+        gstin: '24ADIFS2075H1Z2',
+        state_name: 'Gujarat',
+        state_code: '24',
+        contact_no: '8849735425',
+        upi_id: '8849735425@upi'
+      };
+
+      // Generate UPI QR Code URL
+      const upiUrl = `upi://pay?pa=${seller.upi_id || '8849735425@upi'}&pn=${encodeURIComponent(seller.company_name)}&am=${sale.total_amount}&cu=INR`;
+      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(upiUrl)}`;
+
+      // Helper to load image
+      const loadImage = (url: string): Promise<HTMLImageElement> => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'Anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = (e) => reject(e);
+          img.src = url;
+        });
+      };
+
+      let qrImage;
+      try {
+        qrImage = await loadImage(qrCodeUrl);
+      } catch (e) {
+        console.warn('Could not load QR code', e);
+      }
 
       const drawGridInvoice = (title: string, yOffset: number) => {
         let y = margin + yOffset;
@@ -282,7 +318,7 @@
         doc.setFont('helvetica', 'normal');
         doc.text(sale.customers?.address || '', margin + 2, y + 12);
         doc.text(`GSTIN/UIN: ${sale.customers?.gst_number || ''}`, margin + 2, y + 16);
-        doc.text(`State Name: Gujarat, Code: 24`, margin + 2, y + 20);
+        doc.text(`State Name: ${sale.customers?.state_name || 'Gujarat'}, Code: ${sale.customers?.state_code || '24'}`, margin + 2, y + 20);
         doc.text(`Contact: ${sale.customers?.mobile || ''}`, margin + 2, y + 24);
 
         y += 30;
@@ -335,24 +371,41 @@
         y = tableBottom;
         doc.line(margin, y, pageWidth - margin, y);
         
-        // Totals
-        doc.text('Total', cols.hsn - 5, y + 4);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`${sale.quantity} NOS`, cols.qty - 13, y + 4);
-        doc.text(`Rs. ${sale.total_amount.toLocaleString('en-IN', {minimumFractionDigits: 2})}`, cols.amt - 2, y + 4, { align: 'right' });
-        
-        y += 6;
-        doc.line(margin, y, pageWidth - margin, y);
-        
-        // Tax breakdown
-        doc.setFont('helvetica', 'normal');
-        doc.text('Freight Outward', cols.amt - 50, y - 10);
-        doc.text('SGST', cols.amt - 50, y - 6);
-        doc.text('CGST', cols.amt - 50, y - 2);
-        doc.text(sale.sgst.toFixed(2), cols.amt - 2, y - 6, { align: 'right' });
-        doc.text(sale.cgst.toFixed(2), cols.amt - 2, y - 2, { align: 'right' });
+        // Totals Calculation
+        const subtotal = sale.quantity * sale.rate;
+        const splitRate = (sale.gst_rate || 5) / 2;
 
         doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        
+        // Compact summary rows
+        y += 5;
+        doc.text('Subtotal (Base)', cols.amt - 60, y);
+        doc.text(subtotal.toLocaleString('en-IN', {minimumFractionDigits: 2}), cols.amt - 2, y, { align: 'right' });
+        
+        y += 5;
+        doc.text(`CGST (${splitRate}%)`, cols.amt - 60, y);
+        doc.text(sale.cgst.toLocaleString('en-IN', {minimumFractionDigits: 2}), cols.amt - 2, y, { align: 'right' });
+        
+        y += 5;
+        doc.text(`SGST (${splitRate}%)`, cols.amt - 60, y);
+        doc.text(sale.sgst.toLocaleString('en-IN', {minimumFractionDigits: 2}), cols.amt - 2, y, { align: 'right' });
+        
+        y += 5;
+        doc.line(margin, y, pageWidth - margin, y);
+        
+        // Grand Total row - repositioned to avoid overlap
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        y += 7;
+        doc.text('Total Amount', margin + 10, y); // Moved far left to description area
+        doc.text(`Rs. ${sale.total_amount.toLocaleString('en-IN', {minimumFractionDigits: 2})}`, cols.amt - 2, y, { align: 'right' });
+        
+        y += 3;
+        doc.line(margin, y, pageWidth - margin, y);
+
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
         doc.text('Amount Chargeable (in words)', margin + 2, y + 4);
         doc.setFont('helvetica', 'bold');
         doc.text(numberToWords(Math.round(sale.total_amount)), margin + 2, y + 8);
@@ -369,6 +422,13 @@
         doc.text(`for ${seller.company_name}`, pageWidth - margin - 5, y + 25, { align: 'right' });
         doc.text('Authorised Signatory', pageWidth - margin - 5, y + 35, { align: 'right' });
         
+        // Add QR Code
+        if (qrImage) {
+          doc.setFontSize(8);
+          doc.text('Scan to Pay', colMid - 25, y + 10);
+          doc.addImage(qrImage, 'PNG', colMid - 30, y + 12, 25, 25);
+        }
+
         doc.setFontSize(6);
         doc.text('This is a Computer Generated Document', pageWidth / 2, y + 40, { align: 'center' });
       };
@@ -376,13 +436,10 @@
       // Single Copy as requested (following the sample provided)
       drawGridInvoice('SALES ORDER', 0);
       
-      // If user really wants two copies on same page:
-      // drawGridInvoice('SALES ORDER - CUSTOMER COPY', 0);
-      // doc.line(0, pageHeight/2, pageWidth, pageHeight/2);
-      // drawGridInvoice('SALES ORDER - OFFICE COPY', pageHeight/2);
-
-      doc.save(`${sale.invoice_number}.pdf`);
-      alert('Professional Invoice downloaded successfully!');
+      // Open in new tab for viewing ONLY
+      const pdfData = doc.output('bloburl');
+      window.open(pdfData, '_blank');
+      
     } catch (error: any) {
       console.error('PDF generation error:', error);
       alert('Error generating PDF: ' + error.message);
@@ -409,14 +466,16 @@
     if (!editingSale) return;
 
     // Recalculate totals
-    const cgst = (editingSale.quantity * editingSale.rate * 0.025);
-    const sgst = (editingSale.quantity * editingSale.rate * 0.025);
-    const total = (editingSale.quantity * editingSale.rate) + cgst + sgst;
+    const totalBase = editingSale.quantity * editingSale.rate;
+    const cgst = (totalBase * (editingSale.gst_rate / 2)) / 100;
+    const sgst = (totalBase * (editingSale.gst_rate / 2)) / 100;
+    const total = totalBase + cgst + sgst;
 
     const updateData: any = {
       customer_id: editingSale.customer_id,
       quantity: editingSale.quantity,
       rate: editingSale.rate,
+      gst_rate: editingSale.gst_rate,
       cgst,
       sgst,
       total_amount: total,
@@ -513,6 +572,17 @@
       </div>
 
       <div class="input-group">
+        <label>GST Rate (%)</label>
+        <select bind:value={newSale.gst_rate}>
+          <option value={0}>0% (Exempt)</option>
+          <option value={5}>5% (2.5% CGST + 2.5% SGST)</option>
+          <option value={12}>12% (6% CGST + 6% SGST)</option>
+          <option value={18}>18% (9% CGST + 9% SGST)</option>
+          <option value={28}>28% (14% CGST + 14% SGST)</option>
+        </select>
+      </div>
+
+      <div class="input-group">
         <label>Sale Date</label>
         <input type="date" bind:value={newSale.sale_date} />
       </div>
@@ -587,6 +657,17 @@
         <div class="input-group">
           <label>Rate</label>
           <input type="number" bind:value={editingSale.rate} step="0.01" />
+        </div>
+
+        <div class="input-group">
+          <label>GST Rate (%)</label>
+          <select bind:value={editingSale.gst_rate}>
+            <option value={0}>0% (Exempt)</option>
+            <option value={5}>5% (2.5% CGST + 2.5% SGST)</option>
+            <option value={12}>12% (6% CGST + 6% SGST)</option>
+            <option value={18}>18% (9% CGST + 9% SGST)</option>
+            <option value={28}>28% (14% CGST + 14% SGST)</option>
+          </select>
         </div>
 
         <div class="input-group">

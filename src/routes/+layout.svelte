@@ -3,7 +3,7 @@
   import { language, translations } from '$lib/i18n';
   import { supabase } from '$lib/supabase';
   import { onMount } from 'svelte';
-  import { LayoutDashboard, Package, Factory, ShoppingCart, Wallet, Users, FileText, Settings, LogOut } from 'lucide-svelte';
+  import { LayoutDashboard, Package, Factory, ShoppingCart, Wallet, Users, FileText, Settings, LogOut, Truck, Building } from 'lucide-svelte';
 
   let { children } = $props();
   let user = $state<any>(null);
@@ -38,9 +38,11 @@
         <li><a href="/dashboard"><LayoutDashboard size={20} /> {t.dashboard}</a></li>
         <li><a href="/inventory"><Package size={20} /> {t.inventory}</a></li>
         <li><a href="/production"><Factory size={20} /> {t.production}</a></li>
+        <li><a href="/purchases"><Truck size={20} /> {t.purchases}</a></li>
         <li><a href="/sales"><ShoppingCart size={20} /> {t.sales}</a></li>
         <li><a href="/expenses"><Wallet size={20} /> {t.expenses}</a></li>
         <li><a href="/customers"><Users size={20} /> {t.customers}</a></li>
+        <li><a href="/suppliers"><Building size={20} /> {t.suppliers}</a></li>
         <li><a href="/reports"><FileText size={20} /> {t.reports}</a></li>
         <li><a href="/settings"><Settings size={20} /> {t.settings}</a></li>
       </ul>

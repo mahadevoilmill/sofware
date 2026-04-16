@@ -1,0 +1,37 @@
+-- COPY EVERYTHING BELOW AND PASTE INTO SUPABASE SQL EDITOR --
+
+CREATE TABLE IF NOT EXISTS purchases (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  purchase_number TEXT UNIQUE NOT NULL,
+  supplier_name TEXT,
+  product_item UUID REFERENCES inventory(id),
+  product_name TEXT,
+  quantity NUMERIC NOT NULL,
+  rate NUMERIC NOT NULL,
+  gst_rate NUMERIC DEFAULT 5,
+  cgst NUMERIC NOT NULL,
+  sgst NUMERIC NOT NULL,
+  total_amount NUMERIC NOT NULL,
+  purchase_date DATE DEFAULT CURRENT_DATE,
+  payment_mode TEXT DEFAULT 'Cash',
+  payment_details TEXT,
+  is_done BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE purchases ENABLE ROW LEVEL SECURITY;
+
+-- Allow all authenticated users to access this table
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'purchases' 
+        AND policyname = 'Authenticated users can CRUD purchases'
+    ) THEN
+        CREATE POLICY "Authenticated users can CRUD purchases" 
+        ON purchases FOR ALL 
+        USING (auth.role() = 'authenticated');
+    END IF;
+END $$;

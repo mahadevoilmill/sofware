@@ -43,3 +43,40 @@ WHERE NOT EXISTS (SELECT 1 FROM company_settings LIMIT 1);
 -- 5. Add payment_mode and payment_details to sales table
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS payment_mode TEXT DEFAULT 'Cash';
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS payment_details TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS gst_rate numeric DEFAULT 0;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS gst_amount numeric DEFAULT 0;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS total_with_gst numeric DEFAULT 0;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS state_name TEXT DEFAULT 'Gujarat';
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS state_code TEXT DEFAULT '24';
+CREATE TABLE IF NOT EXISTS purchases (
+  id uuid default gen_random_uuid() primary key,
+  purchase_number text unique not null,
+  supplier_name text,
+  product_item uuid references inventory(id),
+  product_name text,
+  quantity numeric not null,
+  rate numeric not null,
+  gst_rate numeric default 5,
+  cgst numeric not null,
+  sgst numeric not null,
+  total_amount numeric not null,
+  purchase_date date default current_date,
+  payment_mode text default 'Cash',
+  payment_details text,
+  is_done boolean default false,
+  created_at timestamp with time zone default now()
+);
+ALTER TABLE purchases ENABLE ROW LEVEL SECURITY;
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'purchases' 
+        AND policyname = 'Authenticated users can CRUD purchases'
+    ) THEN
+        CREATE POLICY "Authenticated users can CRUD purchases" 
+        ON purchases FOR ALL 
+        USING (auth.role() = 'authenticated');
+    END IF;
+END $$;
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS upi_id TEXT DEFAULT '8849735425@upi';

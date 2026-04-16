@@ -7,13 +7,21 @@
   const t = $derived(translations[$language]);
 
   let expenses = $state<any[]>([]);
-  let totalExpenses = $derived(expenses.reduce((acc, curr) => acc + (curr.amount || 0), 0));
+  let totalExpenses = $derived(expenses.reduce((acc, curr) => acc + (curr.total_with_gst || curr.amount || 0), 0));
 
   let newExpense = $state({
     description: '',
     amount: 0,
+    gst_rate: 0,
+    gst_amount: 0,
+    total_with_gst: 0,
     category: 'other',
     expense_date: new Date().toISOString().split('T')[0]
+  });
+
+  $effect(() => {
+    newExpense.gst_amount = (newExpense.amount * newExpense.gst_rate) / 100;
+    newExpense.total_with_gst = newExpense.amount + newExpense.gst_amount;
   });
 
   onMount(async () => {
@@ -28,7 +36,15 @@
   async function handleAddExpense() {
     const { error } = await supabase.from('expenses').insert(newExpense);
     if (!error) {
-      newExpense = { description: '', amount: 0, category: 'other', expense_date: new Date().toISOString().split('T')[0] };
+      newExpense = { 
+        description: '', 
+        amount: 0, 
+        gst_rate: 0, 
+        gst_amount: 0, 
+        total_with_gst: 0,
+        category: 'other', 
+        expense_date: new Date().toISOString().split('T')[0] 
+      };
       await fetchExpenses();
     }
   }
@@ -69,8 +85,29 @@
       </div>
 
       <div class="input-group">
-        <label>Amount (₹)</label>
+        <label>Base Amount (₹)</label>
         <input type="number" bind:value={newExpense.amount} min="0" />
+      </div>
+
+      <div class="input-group">
+        <label>GST Rate (%)</label>
+        <select bind:value={newExpense.gst_rate}>
+          <option value={0}>0%</option>
+          <option value={5}>5%</option>
+          <option value={12}>12%</option>
+          <option value={18}>18%</option>
+          <option value={28}>28%</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label>GST Amount</label>
+        <input type="number" value={newExpense.gst_amount} disabled />
+      </div>
+
+      <div class="input-group">
+        <label>Total with GST</label>
+        <input type="number" value={newExpense.total_with_gst} disabled />
       </div>
 
       <div class="input-group">
@@ -101,7 +138,9 @@
           <th>Date</th>
           <th>Description</th>
           <th>Category</th>
-          <th>Amount</th>
+          <th>Base Amount</th>
+          <th>GST</th>
+          <th>Total</th>
           <th>Status</th>
           <th>Actions</th>
         </tr>
@@ -112,7 +151,9 @@
             <td>{new Date(expense.expense_date).toLocaleDateString()}</td>
             <td>{expense.description}</td>
             <td><span class="category-tag {expense.category}">{expense.category}</span></td>
-            <td>₹{expense.amount.toLocaleString()}</td>
+            <td>₹{(expense.amount || 0).toLocaleString()}</td>
+            <td>₹{(expense.gst_amount || 0).toLocaleString()} ({expense.gst_rate || 0}%)</td>
+            <td><strong>₹{(expense.total_with_gst || expense.amount || 0).toLocaleString()}</strong></td>
             <td class="status-cell">
               <button 
                 class="done-btn"

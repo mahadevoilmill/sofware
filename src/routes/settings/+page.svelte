@@ -21,7 +21,8 @@
     contact_no: '',
     bank_name: '',
     account_no: '',
-    branch_ifsc: ''
+    branch_ifsc: '',
+    upi_id: ''
   });
 
   onMount(async () => {
@@ -151,6 +152,10 @@
       <div class="form-group">
         <label>Branch & IFSC Code</label>
         <input type="text" bind:value={settings.branch_ifsc} placeholder="e.g. VASAD & SBIN000XXXX" />
+      </div>
+      <div class="form-group">
+        <label>UPI ID (for QR Code)</label>
+        <input type="text" bind:value={settings.upi_id} placeholder="e.g. 8849735425@upi" />
       </div>
     </div>
   </div>

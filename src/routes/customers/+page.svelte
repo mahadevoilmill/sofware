@@ -11,7 +11,9 @@
     name: '',
     address: '',
     mobile: '',
-    gst_number: ''
+    gst_number: '',
+    state_name: 'Gujarat',
+    state_code: '24'
   });
 
   onMount(async () => {
@@ -26,7 +28,14 @@
   async function handleAddCustomer() {
     const { error } = await supabase.from('customers').insert(newCustomer);
     if (!error) {
-      newCustomer = { name: '', address: '', mobile: '', gst_number: '' };
+      newCustomer = { 
+        name: '', 
+        address: '', 
+        mobile: '', 
+        gst_number: '',
+        state_name: 'Gujarat',
+        state_code: '24'
+      };
       await fetchCustomers();
     }
   }
@@ -36,16 +45,16 @@
   <h2>{t.customers}</h2>
 
   <div class="customer-form-card">
-    <h3>Add New Customer</h3>
+    <h3>Add New Customer (Billing Details)</h3>
     <div class="form-grid">
-      <div class="input-group">
-        <label>{t.customer_name}</label>
-        <input type="text" bind:value={newCustomer.name} placeholder="Full Name" />
+      <div class="input-group full-width">
+        <label>{t.customer_name} (Buyer Name)</label>
+        <input type="text" bind:value={newCustomer.name} placeholder="Full Name / Company Name" />
       </div>
 
-      <div class="input-group">
-        <label>Address</label>
-        <input type="text" bind:value={newCustomer.address} placeholder="Street Address" />
+      <div class="input-group full-width">
+        <label>Billing Address</label>
+        <textarea bind:value={newCustomer.address} placeholder="Complete Street Address, City, Pincode"></textarea>
       </div>
 
       <div class="input-group">
@@ -56,6 +65,16 @@
       <div class="input-group">
         <label>{t.gst_no}</label>
         <input type="text" bind:value={newCustomer.gst_number} placeholder="24XXXXX..." />
+      </div>
+
+      <div class="input-group">
+        <label>State Name</label>
+        <input type="text" bind:value={newCustomer.state_name} placeholder="e.g. Gujarat" />
+      </div>
+
+      <div class="input-group">
+        <label>State Code</label>
+        <input type="text" bind:value={newCustomer.state_code} placeholder="e.g. 24" />
       </div>
     </div>
     <button class="add-btn" onclick={handleAddCustomer}>
@@ -72,8 +91,11 @@
           {#if customer.address}
             <p class="address">{customer.address}</p>
           {/if}
-          <p><Phone size={14} /> {customer.mobile || 'N/A'}</p>
-          <p><Hash size={14} /> GST: {customer.gst_number || 'N/A'}</p>
+          <div class="customer-meta">
+            <p><Phone size={14} /> {customer.mobile || 'N/A'}</p>
+            <p><Hash size={14} /> GST: {customer.gst_number || 'N/A'}</p>
+            <p><strong>State:</strong> {customer.state_name} ({customer.state_code})</p>
+          </div>
         </div>
       {/each}
     </div>
@@ -101,18 +123,29 @@
     margin-bottom: 20px;
   }
 
+  .full-width {
+    grid-column: 1 / -1;
+  }
+
   .input-group label {
     display: block;
     margin-bottom: 5px;
     font-size: 0.9rem;
     color: #666;
+    font-weight: 600;
   }
 
-  .input-group input {
+  .input-group input, .input-group textarea {
     width: 100%;
     padding: 10px;
     border: 1px solid #ddd;
     border-radius: 4px;
+    font-family: inherit;
+  }
+
+  .input-group textarea {
+    height: 80px;
+    resize: vertical;
   }
 
   .add-btn {
@@ -125,6 +158,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    font-weight: 600;
   }
 
   .list-grid {
@@ -144,10 +178,18 @@
   .customer-card h4 {
     margin: 0 0 10px 0;
     color: #2c3e50;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+  }
+
+  .customer-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
   }
 
   .customer-card p {
-    margin: 5px 0;
+    margin: 0;
     font-size: 0.9rem;
     color: #7f8c8d;
     display: flex;
@@ -160,5 +202,6 @@
     color: #95a5a6;
     margin-bottom: 10px;
     display: block;
+    font-style: italic;
   }
 </style>
