@@ -63,6 +63,9 @@
       {#if user}
         <div class="user-info">
           <span>{user.email}</span>
+          <button onclick={handleLogout} class="header-logout" title={t.logout}>
+            <LogOut size={18} />
+          </button>
         </div>
       {/if}
     </header>
@@ -192,6 +195,30 @@
     background-color: #3498db;
     color: white;
     border-color: #3498db;
+  }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .header-logout {
+    background: none;
+    border: 1px solid #e74c3c;
+    color: #e74c3c;
+    padding: 5px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+  }
+
+  .header-logout:hover {
+    background-color: #e74c3c;
+    color: white;
   }
 
   .page-content {
