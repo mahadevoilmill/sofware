@@ -1,0 +1,85 @@
+Build a full-featured Oil Mill ERP Web Application using SvelteKit and Supabase.
+
+Project Name: Mahadev Oil Mill ERP
+
+Requirements:
+
+1. Authentication:
+
+* Use Supabase Auth
+* Roles: Admin and Staff
+* Secure login system
+
+2. Dashboard:
+
+* Show total sales, stock, expenses, and profit
+* Use charts for visualization
+
+3. Billing System (GST):
+
+* Create professional GST invoices
+* Fields: Customer Name, GST No, Product (Oil), Quantity, Rate
+* Auto calculate CGST and SGST (2.5% each for 5% GST)
+* Generate PDF invoice with company logo and address:
+  "Mahadev Oil Mill, 902 Nagardas Ni Khadki, Vasad - 388306"
+* Add custom footer message
+
+4. Inventory Management:
+
+* Track raw materials (groundnut, sesame)
+* Track oil stock
+* Auto update stock on production and sales
+* Low stock alerts
+
+5. Production Module:
+
+* Input raw material quantity
+* Output oil and waste (khali)
+* Auto adjust inventory
+
+6. Expenses Module:
+
+* Add daily expenses (electricity, labor, transport)
+* Store and calculate totals
+
+7. Customer Management:
+
+* Store customer name, mobile, GST number
+* View customer history and previous invoices
+
+8. Reports:
+
+* Daily, monthly, yearly reports
+* Profit/loss calculation
+* Graphs using charts
+
+9. Database (Supabase):
+
+* Tables: users, customers, sales, stock, production, expenses
+* Use relational schema
+
+10. Features:
+
+* Auto bill number (MAHADEV-001, increment)
+* Auto timestamp
+* Export data to CSV
+* Backup using Supabase
+
+11. UI/UX:
+
+* Clean dashboard design
+* English + Gujarati labels
+* Responsive for mobile and desktop
+
+12. Deployment:
+
+* Deploy using Vercel or Netlify
+* Use Supabase as backend
+
+Generate:
+
+* Full folder structure
+* SvelteKit code (routes, components)
+* Supabase schema SQL
+* API integration
+* Example UI components
