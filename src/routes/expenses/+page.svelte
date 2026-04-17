@@ -16,6 +16,8 @@
     gst_amount: 0,
     total_with_gst: 0,
     category: 'other',
+    payment_mode: 'Cash',
+    payment_details: '',
     expense_date: new Date().toISOString().split('T')[0]
   });
 
@@ -43,6 +45,8 @@
         gst_amount: 0, 
         total_with_gst: 0,
         category: 'other', 
+        payment_mode: 'Cash',
+        payment_details: '',
         expense_date: new Date().toISOString().split('T')[0] 
       };
       await fetchExpenses();
@@ -124,6 +128,19 @@
         <label>Date</label>
         <input type="date" bind:value={newExpense.expense_date} />
       </div>
+
+      <div class="input-group">
+        <label>Payment Mode</label>
+        <select bind:value={newExpense.payment_mode}>
+          <option value="Cash">💵 Cash</option>
+          <option value="Bank">🏦 Bank / Online</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label>Payment Details</label>
+        <input type="text" bind:value={newExpense.payment_details} placeholder="Ref No / Cheque No" />
+      </div>
     </div>
     <button class="add-btn" onclick={handleAddExpense}>
       <Plus size={18} /> Add Expense
@@ -138,8 +155,7 @@
           <th>Date</th>
           <th>Description</th>
           <th>Category</th>
-          <th>Base Amount</th>
-          <th>GST</th>
+          <th>Mode</th>
           <th>Total</th>
           <th>Status</th>
           <th>Actions</th>
@@ -151,8 +167,11 @@
             <td>{new Date(expense.expense_date).toLocaleDateString()}</td>
             <td>{expense.description}</td>
             <td><span class="category-tag {expense.category}">{expense.category}</span></td>
-            <td>₹{(expense.amount || 0).toLocaleString()}</td>
-            <td>₹{(expense.gst_amount || 0).toLocaleString()} ({expense.gst_rate || 0}%)</td>
+            <td>
+              <span class="mode-tag {expense.payment_mode?.toLowerCase()}">
+                {expense.payment_mode === 'Cash' ? '💵' : '🏦'} {expense.payment_mode}
+              </span>
+            </td>
             <td><strong>₹{(expense.total_with_gst || expense.amount || 0).toLocaleString()}</strong></td>
             <td class="status-cell">
               <button 
@@ -267,6 +286,14 @@
   .category-tag.labor { background: #d4edda; color: #155724; }
   .category-tag.transport { background: #d1ecf1; color: #0c5460; }
   .category-tag.other { background: #e2e3e5; color: #383d41; }
+
+  .mode-tag {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+  }
+  .mode-tag.cash { background: #d4edda; color: #155724; }
+  .mode-tag.bank { background: #cce5ff; color: #004085; }
 
   .delete-btn {
     background: none;

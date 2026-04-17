@@ -3,7 +3,7 @@
   import { supabase } from '$lib/supabase';
   import { language, translations } from '$lib/i18n';
   import { Chart, registerables } from 'chart.js';
-  import { Wallet, Package, ShoppingCart, TrendingUp } from 'lucide-svelte';
+  import { Wallet, Package, ShoppingCart, TrendingUp, CreditCard, History, CheckCircle, Clock } from 'lucide-svelte';
 
   Chart.register(...registerables);
 
@@ -13,7 +13,16 @@
     totalStock: 0,
     totalExpenses: 0,
     netProfit: 0,
-    totalCustomers: 0
+    totalCustomers: 0,
+    cashBalance: 0,
+    bankBalance: 0,
+    status: {
+      sales: { done: 0, pending: 0 },
+      purchases: { done: 0, pending: 0 },
+      expenses: { done: 0, pending: 0 },
+      production: { done: 0, pending: 0 },
+      inventory: { done: 0, pending: 0 }
+    }
   });
 
   let topCustomers = $state<any[]>([]);
@@ -29,16 +38,22 @@
     // Fetch sales with customer info
     const { data: sales } = await supabase
       .from('sales')
-      .select('total_amount, sales_date, customers:customer_id(name)');
+      .select('total_amount, sales_date, payment_mode, is_done, customers:customer_id(name)');
     
     // Fetch inventory
     const { data: inventory } = await supabase.from('inventory').select('quantity');
     
     // Fetch expenses
-    const { data: expenses } = await supabase.from('expenses').select('amount, total_with_gst');
+    const { data: expenses } = await supabase.from('expenses').select('amount, total_with_gst, payment_mode, is_done');
 
     // Fetch purchases
-    const { data: purchases } = await supabase.from('purchases').select('total_amount');
+    const { data: purchases } = await supabase.from('purchases').select('total_amount, payment_mode, is_done');
+
+    // Fetch production
+    const { data: production } = await supabase.from('production').select('is_done');
+
+    // Fetch inventory transactions
+    const { data: invTrans } = await supabase.from('inventory_transactions').select('is_done');
 
     // Fetch total customer count
     const { count: customerCount } = await supabase.from('customers').select('*', { count: 'exact', head: true });
@@ -48,18 +63,43 @@
     const totalStock = (inventory || []).reduce((acc, curr) => acc + (Number(curr.quantity) || 0), 0);
     const totalExpenses = (expenses || []).reduce((acc, curr) => acc + (Number(curr.total_with_gst) || Number(curr.amount) || 0), 0);
 
+    // Cash/Bank Calculation
+    const cashIn = (sales || []).filter(s => s.payment_mode === 'Cash').reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0);
+    const bankIn = (sales || []).filter(s => s.payment_mode === 'Bank').reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0);
+    
+    const cashOutExpenses = (expenses || []).filter(e => e.payment_mode === 'Cash').reduce((acc, curr) => acc + (Number(curr.total_with_gst) || Number(curr.amount) || 0), 0);
+    const bankOutExpenses = (expenses || []).filter(e => e.payment_mode === 'Bank').reduce((acc, curr) => acc + (Number(curr.total_with_gst) || Number(curr.amount) || 0), 0);
+
+    const cashOutPurchases = (purchases || []).filter(p => p.payment_mode === 'Cash').reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0);
+    const bankOutPurchases = (purchases || []).filter(p => p.payment_mode === 'Bank').reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0);
+
+    // Status calculation
+    const getStatus = (list: any[]) => ({
+      done: (list || []).filter(item => item.is_done).length,
+      pending: (list || []).filter(item => !item.is_done).length
+    });
+
     stats = {
       totalSales,
       totalPurchases,
       totalStock,
       totalExpenses,
       netProfit: totalSales - totalExpenses - totalPurchases,
-      totalCustomers: customerCount || 0
+      totalCustomers: customerCount || 0,
+      cashBalance: cashIn - cashOutExpenses - cashOutPurchases,
+      bankBalance: bankIn - bankOutExpenses - bankOutPurchases,
+      status: {
+        sales: getStatus(sales || []),
+        purchases: getStatus(purchases || []),
+        expenses: getStatus(expenses || []),
+        production: getStatus(production || []),
+        inventory: getStatus(invTrans || [])
+      }
     };
 
     // Calculate Top Customers
     const customerMap: { [key: string]: number } = {};
-    (sales || []).forEach(sale => {
+    (sales || []).forEach((sale: any) => {
       const name = sale.customers?.name || 'Walk-in Customer';
       customerMap[name] = (customerMap[name] || 0) + (Number(sale.total_amount) || 0);
     });
@@ -139,18 +179,26 @@
 
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="stat-icon sales"><ShoppingCart size={24} /></div>
+      <div class="stat-icon cash"><Wallet size={24} /></div>
       <div class="stat-info">
-        <h3>{t.total_sales}</h3>
-        <p>₹{stats.totalSales.toLocaleString()}</p>
+        <h3>Cash Balance</h3>
+        <p>₹{stats.cashBalance.toLocaleString()}</p>
       </div>
     </div>
 
     <div class="stat-card">
-      <div class="stat-icon stock"><Package size={24} /></div>
+      <div class="stat-icon bank"><CreditCard size={24} /></div>
       <div class="stat-info">
-        <h3>{t.total_stock}</h3>
-        <p>{stats.totalStock.toLocaleString()} kg/l</p>
+        <h3>Bank Balance</h3>
+        <p>₹{stats.bankBalance.toLocaleString()}</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon sales"><ShoppingCart size={24} /></div>
+      <div class="stat-info">
+        <h3>{t.total_sales}</h3>
+        <p>₹{stats.totalSales.toLocaleString()}</p>
       </div>
     </div>
 
@@ -171,19 +219,35 @@
     </div>
 
     <div class="stat-card">
-      <div class="stat-icon purchases"><ShoppingCart size={24} /></div>
+      <div class="stat-icon stock"><Package size={24} /></div>
       <div class="stat-info">
-        <h3>{t.total_purchases}</h3>
-        <p>₹{stats.totalPurchases.toLocaleString()}</p>
+        <h3>{t.total_stock}</h3>
+        <p>{stats.totalStock.toLocaleString()} units</p>
       </div>
     </div>
+  </div>
 
-    <div class="stat-card">
-      <div class="stat-icon customers"><Wallet size={24} /></div>
-      <div class="stat-info">
-        <h3>{t.customers}</h3>
-        <p>{stats.totalCustomers}</p>
-      </div>
+  <div class="status-section">
+    <h3>Transaction Status</h3>
+    <div class="status-grid">
+      {#each Object.entries(stats.status) as [key, value]}
+        <div class="status-card">
+          <div class="status-header">
+            <History size={18} />
+            <span class="capitalize">{key}</span>
+          </div>
+          <div class="status-counts">
+            <div class="count-item done">
+              <CheckCircle size={14} />
+              <span>Done: {value.done}</span>
+            </div>
+            <div class="count-item pending">
+              <Clock size={14} />
+              <span>Pending: {value.pending}</span>
+            </div>
+          </div>
+        </div>
+      {/each}
     </div>
   </div>
 
@@ -250,6 +314,61 @@
   .stat-icon.profit { background-color: #f1c40f; }
   .stat-icon.purchases { background-color: #e67e22; }
   .stat-icon.customers { background-color: #9b59b6; }
+  .stat-icon.cash { background-color: #27ae60; }
+  .stat-icon.bank { background-color: #2980b9; }
+
+  .status-section {
+    margin-bottom: 40px;
+  }
+
+  .status-section h3 {
+    margin-bottom: 20px;
+    font-size: 1.2rem;
+    color: #2c3e50;
+  }
+
+  .status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+  }
+
+  .status-card {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    border-left: 4px solid #3498db;
+  }
+
+  .status-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    color: #7f8c8d;
+    font-weight: 600;
+  }
+
+  .capitalize {
+    text-transform: capitalize;
+  }
+
+  .status-counts {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .count-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+  }
+
+  .count-item.done { color: #27ae60; }
+  .count-item.pending { color: #e67e22; }
 
   .stat-info h3 {
     margin: 0;

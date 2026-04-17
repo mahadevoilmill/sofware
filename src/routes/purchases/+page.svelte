@@ -12,6 +12,8 @@
   let purchases = $state<any[]>([]);
   let companySettings = $state<any>(null);
   let showManualProduct = $state(false);
+  let showEditForm = $state(false);
+  let editingPurchase = $state<any>(null);
   
   let newPurchase = $state({
     supplier_id: '',
