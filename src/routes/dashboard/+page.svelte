@@ -42,6 +42,7 @@
 
   async function fetchStats() {
     const { start, end } = getFYDateRange($financialYear);
+    console.log('Fetching stats with range:', { start, end });
 
     // Fetch sales with customer info
     const { data: sales } = await supabase

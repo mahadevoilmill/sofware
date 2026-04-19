@@ -29,11 +29,27 @@
   }
 
   async function handleAddCustomer() {
+    console.log('Customer data before validation:', {
+        name: newCustomer.name.trim(),
+        billing_address: newCustomer.billing_address.trim(),
+        mobile: newCustomer.mobile.trim()
+    });
+    // Ensure values are strings before trimming to prevent errors if they are undefined/null
+    const name = typeof newCustomer.name === 'string' ? newCustomer.name.trim() : '';
+    const billingAddress = typeof newCustomer['Billing Address'] === 'string' ? newCustomer['Billing Address'].trim() : '';
+    const mobile = typeof newCustomer.mobile === 'string' ? newCustomer.mobile.trim() : '';
+
+    if (!name || !billingAddress || !mobile) {
+        alert('Please fill in Name, Billing Address, and Mobile Number.');
+        return;
+    }
+
     const { error } = await supabase.from('customers').insert(newCustomer);
     if (!error) {
+      // Reset form and refetch customers on success
       newCustomer = { 
         name: '', 
-        address: '', 
+        billing_address: '', // Reset billing_address to empty
         mobile: '', 
         gst_number: '',
         state_name: 'Gujarat',
@@ -41,6 +57,10 @@
       };
       await fetchCustomers();
       alert('Customer added successfully!');
+    } else {
+      // Log or display the error to the user
+      console.error('Error adding customer:', error);
+      alert(`Failed to add customer. Please try again. Error: ${error.message}`);
     }
   }
 
@@ -88,8 +108,7 @@
         </div>
         <div class="input-group full-width">
           <label>Billing Address</label>
-          <textarea bind:value={editingCustomer.address}></textarea>
-        </div>
+          <textarea bind:value={editingCustomer['Billing Address']}></textarea>        </div>
         <div class="input-group">
           <label>Mobile Number</label>
           <input type="text" bind:value={editingCustomer.mobile} />
@@ -124,7 +143,7 @@
 
       <div class="input-group full-width">
         <label>Billing Address</label>
-        <textarea bind:value={newCustomer.address} placeholder="Complete Street Address, City, Pincode"></textarea>
+        <textarea bind:value={newCustomer['Billing Address']} placeholder="Complete Street Address, City, Pincode"></textarea>
       </div>
 
       <div class="input-group">
@@ -147,7 +166,7 @@
         <input type="text" bind:value={newCustomer.state_code} placeholder="e.g. 24" />
       </div>
     </div>
-    <button class="add-btn" onclick={handleAddCustomer}>
+    <button class="add-btn" onclick={() => console.log('Button clicked directly!')}>
       <Plus size={18} /> Add Customer
     </button>
   </div>
@@ -168,8 +187,8 @@
               </button>
             </div>
           </div>
-          {#if customer.address}
-            <p class="address">{customer.address}</p>
+          {#if customer['Billing Address']}
+            <p class="address">{customer['Billing Address']}</p>
           {/if}
           <div class="customer-meta">
             <p><Phone size={14} /> {customer.mobile || 'N/A'}</p>

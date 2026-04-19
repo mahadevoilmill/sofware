@@ -21,16 +21,19 @@
     product_item: '',
     product_name: '',
     quantity: 0,
+    unit: 'NOS', // Default unit
     rate: 0,
     gst_rate: 5,
-    cgst: 0,
-    sgst: 0,
-    total_amount: 0,
     selling_partner: '',
     payment_mode: 'Cash',
     payment_details: '',
     sale_date: new Date().toISOString().split('T')[0]
   });
+
+  const totalBase = $derived(newSale.quantity * newSale.rate);
+  const cgst = $derived((totalBase * (newSale.gst_rate / 2)) / 100);
+  const sgst = $derived((totalBase * (newSale.gst_rate / 2)) / 100);
+  const total_amount = $derived(totalBase + cgst + sgst);
 
   onMount(async () => {
     await fetchData();
@@ -73,12 +76,21 @@
         .order('created_at', { ascending: false });
       
       if (salesError) {
-        console.error('Error fetching sales:', salesError);
-        // Fallback fetch without joins if it fails
-        console.log('Retrying sales fetch without joins...');
+        console.error('Error fetching sales (join failed):', salesError);
+        console.log('Retrying sales fetch and mapping manually...');
+        
         const { data: simpleSales, error: simpleError } = await supabase.from('sales').select('*').order('created_at', { ascending: false });
-        if (simpleError) console.error('Error in simple sales fetch:', simpleError);
-        sales = simpleSales || [];
+        if (simpleError) {
+          console.error('Error in simple sales fetch:', simpleError);
+          sales = [];
+        } else {
+          // Manually map IDs to names
+          sales = simpleSales.map(sale => ({
+            ...sale,
+            customers: customers.find(c => c.id === sale.customer_id) || { name: 'N/A' },
+            inventory: inventory.find(i => i.id === sale.product_item) || { item_name: sale.product_name || 'N/A' }
+          }));
+        }
       } else {
         console.log('Fetched sales successfully:', salesData.length, 'records');
         sales = salesData || [];
@@ -135,14 +147,14 @@
       invoice_number,
       customer_id: newSale.customer_id,
       quantity: newSale.quantity,
+      unit: newSale.unit,
       rate: newSale.rate,
-      gst_rate: newSale.gst_rate,
-      cgst,
-      sgst,
-      total_amount: total,
+      cgst: cgst,
+      sgst: sgst,
+      total_amount: total_amount,
       selling_partner: newSale.selling_partner,
       is_done: false,
-      sale_date: newSale.sale_date,
+      sales_date: newSale.sale_date,
       payment_mode: newSale.payment_mode,
       payment_details: newSale.payment_details
     };
@@ -626,6 +638,15 @@
       </div>
 
       <div class="input-group">
+        <label>Unit</label>
+        <select bind:value={newSale.unit}>
+          <option value="NOS">NOS</option>
+          <option value="KG">KG</option>
+          <option value="LTR">LTR</option>
+        </select>
+      </div>
+
+      <div class="input-group">
         <label>{t.rate}</label>
         <input type="number" bind:value={newSale.rate} min="1" step="0.01" />
       </div>
@@ -682,15 +703,15 @@
       {/if}
       <div class="input-group">
         <label>CGST (₹)</label>
-        <input type="text" value={newSale.cgst.toFixed(2)} disabled />
+        <input type="text" value={cgst.toFixed(2)} disabled />
       </div>
       <div class="input-group">
         <label>SGST (₹)</label>
-        <input type="text" value={newSale.sgst.toFixed(2)} disabled />
+        <input type="text" value={sgst.toFixed(2)} disabled />
       </div>
       <div class="input-group full-width"> <!-- Make total amount span full width -->
         <label>Total Amount (₹)</label>
-        <input type="text" value={newSale.total_amount.toFixed(2)} disabled style="font-weight: bold; font-size: 1.1rem;" />
+        <input type="text" value={total_amount.toFixed(2)} disabled style="font-weight: bold; font-size: 1.1rem;" />
       </div>
     </div>
     <button class="add-btn" onclick={handleAddSale}>

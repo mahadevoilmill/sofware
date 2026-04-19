@@ -17,9 +17,21 @@
   });
 
   async function fetchSuppliers() {
-    // Explicitly select partner_name and partner_mobile
-    const { data } = await supabase.from('suppliers').select('*, partner_name, partner_mobile').order('name');
-    suppliers = data || [];
+    try {
+      // Explicitly select partner_name and partner_mobile
+      const { data, error } = await supabase.from('suppliers').select('*, partner_name, partner_mobile').order('name');
+      if (error) {
+        console.error('Error fetching suppliers:', error.message);
+        alert('Failed to fetch suppliers. Please try again. Error: ' + error.message);
+        suppliers = []; // Ensure suppliers is reset on error
+        return;
+      }
+      suppliers = data || [];
+    } catch (e) {
+      console.error('An unexpected error occurred:', e);
+      alert('An unexpected error occurred while fetching suppliers.');
+      suppliers = []; // Ensure suppliers is reset on error
+    }
   }
 
   async function handleAddSupplier() {
