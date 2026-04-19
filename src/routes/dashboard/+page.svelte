@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
-  import { language, translations } from '$lib/i18n';
+  import { language, translations, financialYear, getFYDateRange } from '$lib/i18n';
   import { Chart, registerables } from 'chart.js';
   import { Wallet, Package, ShoppingCart, TrendingUp, CreditCard, History, CheckCircle, Clock } from 'lucide-svelte';
 
@@ -34,20 +34,39 @@
     await fetchStats();
   });
 
+  $effect(() => {
+    if ($financialYear) {
+      fetchStats();
+    }
+  });
+
   async function fetchStats() {
+    const { start, end } = getFYDateRange($financialYear);
+
     // Fetch sales with customer info
     const { data: sales } = await supabase
       .from('sales')
-      .select('total_amount, sales_date, payment_mode, is_done, customers:customer_id(name)');
-    
+      .select('total_amount, sales_date, payment_mode, is_done, customers:customer_id(name)')
+      .gte('sales_date', start)
+      .lte('sales_date', end);
+
     // Fetch inventory
     const { data: inventory } = await supabase.from('inventory').select('quantity');
-    
+
     // Fetch expenses
-    const { data: expenses } = await supabase.from('expenses').select('amount, total_with_gst, payment_mode, is_done');
+    const { data: expenses } = await supabase
+      .from('expenses')
+      .select('amount, total_with_gst, expense_date')
+      .gte('expense_date', start)
+      .lte('expense_date', end);
 
     // Fetch purchases
-    const { data: purchases } = await supabase.from('purchases').select('total_amount, payment_mode, is_done');
+    const { data: purchases } = await supabase
+      .from('purchases')
+      .select('total_amount, purchase_date')
+      .gte('purchase_date', start)
+      .lte('purchase_date', end);
+
 
     // Fetch production
     const { data: production } = await supabase.from('production').select('is_done');

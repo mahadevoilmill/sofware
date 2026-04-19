@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
-  import { language, translations } from '$lib/i18n';
+  import { language, translations, financialYear, getFYDateRange } from '$lib/i18n';
   import jsPDF from 'jspdf';
   import { Plus, Download, Trash2, CheckCircle, Circle, Edit2, Truck } from 'lucide-svelte';
 
@@ -25,14 +25,26 @@
     gst_rate: 5,
     payment_mode: 'Cash',
     payment_details: '',
-    purchase_date: new Date().toISOString().split('T')[0]
+    purchase_date: new Date().toISOString().split('T')[0],
+    bill_url: '',
+    created_by: ''
   });
+
+  let billFile = $state<File | null>(null);
+  let uploading = $state(false);
 
   onMount(async () => {
     await fetchData();
   });
 
+  $effect(() => {
+    if ($financialYear) {
+      fetchData();
+    }
+  });
+
   async function fetchData() {
+    const { start, end } = getFYDateRange($financialYear);
     try {
       const { data: setts } = await supabase.from('company_settings').select('*');
       companySettings = setts?.[0] || null;
@@ -50,6 +62,8 @@
           inventory:product_item(item_name, unit),
           suppliers:supplier_id(name)
         `)
+        .gte('purchase_date', start)
+        .lte('purchase_date', end)
         .order('created_at', { ascending: false });
       
       if (!purError) {
@@ -74,6 +88,27 @@
     if (!showManualProduct && !newPurchase.product_item) {
       alert('Please select a product');
       return;
+    }
+
+    uploading = true;
+    let bill_path = '';
+
+    // Upload file if selected
+    if (billFile) {
+      const fileExt = billFile.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `bills/${fileName}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('purchase-bills')
+        .upload(filePath, billFile);
+
+      if (uploadError) {
+        alert('Error uploading bill: ' + uploadError.message);
+        uploading = false;
+        return;
+      }
+      bill_path = filePath;
     }
 
     const totalBase = newPurchase.quantity * newPurchase.rate;
@@ -108,7 +143,9 @@
       is_done: false,
       purchase_date: newPurchase.purchase_date,
       payment_mode: newPurchase.payment_mode,
-      payment_details: newPurchase.payment_details
+      payment_details: newPurchase.payment_details,
+      bill_url: bill_path,
+      created_by: newPurchase.created_by
     };
 
     if (!showManualProduct && newPurchase.product_item) {
@@ -143,10 +180,20 @@
         gst_rate: 5,
         payment_mode: 'Cash',
         payment_details: '',
-        purchase_date: new Date().toISOString().split('T')[0]
+        purchase_date: new Date().toISOString().split('T')[0],
+        bill_url: '',
+        created_by: ''
       };
+      billFile = null;
+      uploading = false;
       await fetchData();
     }
+  }
+
+  function getBillUrl(path: string) {
+    if (!path) return null;
+    const { data } = supabase.storage.from('purchase-bills').getPublicUrl(path);
+    return data.publicUrl;
   }
 
   async function deletePurchase(purchase: any) {
@@ -189,6 +236,7 @@
       purchase_date: editingPurchase.purchase_date,
       payment_mode: editingPurchase.payment_mode,
       payment_details: editingPurchase.payment_details,
+      created_by: editingPurchase.created_by,
       product_item: editingPurchase.product_item || null,
       product_name: editingPurchase.product_item ? null : editingPurchase.product_name
     };
@@ -283,6 +331,19 @@
       </div>
 
       <div class="input-group">
+        <label>Recorded By (Partner)</label>
+        <select bind:value={newPurchase.created_by}>
+          <option value="">Select Partner</option>
+          {#if companySettings?.partner1_name}
+            <option value={companySettings.partner1_name}>{companySettings.partner1_name}</option>
+          {/if}
+          {#if companySettings?.partner2_name}
+            <option value={companySettings.partner2_name}>{companySettings.partner2_name}</option>
+          {/if}
+        </select>
+      </div>
+
+      <div class="input-group">
         <label>Payment Mode</label>
         <select bind:value={newPurchase.payment_mode}>
           <option value="Cash">Cash</option>
@@ -290,6 +351,11 @@
           <option value="Online">Online / UPI</option>
           <option value="Credit">Credit</option>
         </select>
+      </div>
+
+      <div class="input-group">
+        <label>Upload Purchase Bill (PDF/Image)</label>
+        <input type="file" accept="image/*,.pdf" onchange={(e) => billFile = e.currentTarget.files?.[0] || null} />
       </div>
 
       {#if newPurchase.payment_mode === 'Bank'}
@@ -304,8 +370,8 @@
         </div>
       {/if}
     </div>
-    <button class="add-btn" onclick={handleAddPurchase}>
-      <Plus size={18} /> Add Purchase
+    <button class="add-btn" onclick={handleAddPurchase} disabled={uploading}>
+      <Plus size={18} /> {uploading ? 'Uploading...' : 'Add Purchase'}
     </button>
   </div>
 
@@ -378,6 +444,19 @@
         </div>
 
         <div class="input-group">
+          <label>Recorded By (Partner)</label>
+          <select bind:value={editingPurchase.created_by}>
+            <option value="">Select Partner</option>
+            {#if companySettings?.partner1_name}
+              <option value={companySettings.partner1_name}>{companySettings.partner1_name}</option>
+            {/if}
+            {#if companySettings?.partner2_name}
+              <option value={companySettings.partner2_name}>{companySettings.partner2_name}</option>
+            {/if}
+          </select>
+        </div>
+
+        <div class="input-group">
           <label>Payment Mode</label>
           <select bind:value={editingPurchase.payment_mode}>
             <option value="Cash">Cash</option>
@@ -417,6 +496,7 @@
           <th>Product</th>
           <th>Qty</th>
           <th>Total</th>
+          <th>Bill</th>
           <th>Status</th>
           <th>Actions</th>
         </tr>
@@ -430,6 +510,15 @@
             <td>{pur.product_name || pur.inventory?.item_name || 'N/A'}</td>
             <td>{pur.quantity} {pur.inventory?.unit || ''}</td>
             <td>₹{pur.total_amount.toLocaleString()}</td>
+            <td>
+              {#if pur.bill_url}
+                <a href={getBillUrl(pur.bill_url)} target="_blank" class="view-bill-link">
+                  <FileText size={16} /> View
+                </a>
+              {:else}
+                <span class="no-bill">-</span>
+              {/if}
+            </td>
             <td class="status-cell">
               <button class="done-btn" onclick={() => toggleDone(pur.id, pur.is_done)}>
                 {#if pur.is_done}
@@ -586,6 +675,24 @@
   .actions {
     display: flex;
     gap: 10px;
+  }
+
+  .view-bill-link {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #3498db;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .view-bill-link:hover {
+    text-decoration: underline;
+  }
+
+  .no-bill {
+    color: #bdc3c7;
   }
 
   .edit-btn {

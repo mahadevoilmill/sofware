@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
-  import { language, translations } from '$lib/i18n';
+  import { language, translations, financialYear, getFYDateRange } from '$lib/i18n';
   import { Factory, Plus, Download, CheckCircle, Circle } from 'lucide-svelte';
   import jsPDF from 'jspdf';
   import autoTable from 'jspdf-autotable';
@@ -27,12 +27,21 @@
     await fetchData();
   });
 
+  $effect(() => {
+    if ($financialYear) {
+      fetchData();
+    }
+  });
+
   async function fetchData() {
+    const { start, end } = getFYDateRange($financialYear);
     const { data: invData } = await supabase.from('inventory').select('*');
     inventory = invData || [];
 
     const { data: logData } = await supabase.from('production')
       .select('*, in:inventory!input_item(item_name, unit), out:inventory!output_oil_item(item_name, unit)')
+      .gte('production_date', start)
+      .lte('production_date', end)
       .order('production_date', { ascending: false });
     logs = logData || [];
   }

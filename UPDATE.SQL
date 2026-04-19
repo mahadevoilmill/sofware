@@ -80,3 +80,4 @@ BEGIN
     END IF;
 END $$;
 ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS upi_id TEXT DEFAULT '8849735425@upi';
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS logo_url TEXT;

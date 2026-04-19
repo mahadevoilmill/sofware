@@ -1,11 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { supabase } from '$lib/supabase';
-  import { language, translations } from '$lib/i18n';
-  import { Building, Plus, Phone, Hash, MapPin } from 'lucide-svelte';
-
-  const t = $derived(translations[$language]);
-
   let suppliers = $state<any[]>([]);
   let newSupplier = $state({
     name: '',
@@ -14,7 +7,9 @@
     state_name: 'Gujarat',
     state_code: '24',
     mobile: '',
-    gst_number: ''
+    gst_number: '',
+    partner_name: '', // Added partner name
+    partner_mobile: '' // Added partner mobile
   });
 
   onMount(async () => {
@@ -22,7 +17,8 @@
   });
 
   async function fetchSuppliers() {
-    const { data } = await supabase.from('suppliers').select('*').order('name');
+    // Explicitly select partner_name and partner_mobile
+    const { data } = await supabase.from('suppliers').select('*, partner_name, partner_mobile').order('name');
     suppliers = data || [];
   }
 
@@ -40,7 +36,9 @@
         state_name: 'Gujarat',
         state_code: '24',
         mobile: '', 
-        gst_number: '' 
+        gst_number: '',
+        partner_name: '', // Reset new field
+        partner_mobile: '' // Reset new field
       };
       await fetchSuppliers();
       alert('Supplier added successfully!');
@@ -92,6 +90,17 @@
         <label>State Name</label>
         <input type="text" bind:value={newSupplier.state_name} placeholder="Gujarat" />
       </div>
+
+      <!-- New fields for partner details -->
+      <div class="input-group">
+        <label>Partner Name</label>
+        <input type="text" bind:value={newSupplier.partner_name} placeholder="Partner's Name" />
+      </div>
+
+      <div class="input-group">
+        <label>Partner Mobile</label>
+        <input type="text" bind:value={newSupplier.partner_mobile} placeholder="Partner's Mobile" />
+      </div>
     </div>
     <button class="add-btn" onclick={handleAddSupplier}>
       <Plus size={18} /> Add Supplier
@@ -111,6 +120,14 @@
             <p><Phone size={14} /> {supplier.mobile || 'N/A'}</p>
             <p><Hash size={14} /> GST: {supplier.gst_number || 'N/A'}</p>
           </div>
+          <!-- Display new partner details -->
+          {#if supplier.partner_name}
+            <p>Partner: {supplier.partner_name}</p>
+          {/if}
+          {#if supplier.partner_mobile}
+            <p>Partner Mobile: {supplier.partner_mobile}</p>
+          {/if}
+
           <button class="delete-btn" onclick={() => deleteSupplier(supplier.id)}>Delete</button>
         </div>
       {/each}

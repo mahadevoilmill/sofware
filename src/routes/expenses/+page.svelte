@@ -1,13 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
-  import { language, translations } from '$lib/i18n';
+  import { language, translations, financialYear, getFYDateRange } from '$lib/i18n';
   import { Wallet, Plus, Trash2, CheckCircle, Circle } from 'lucide-svelte';
 
   const t = $derived(translations[$language]);
 
   let expenses = $state<any[]>([]);
   let totalExpenses = $derived(expenses.reduce((acc, curr) => acc + (curr.total_with_gst || curr.amount || 0), 0));
+  let companySettings = $state<any>(null);
 
   let newExpense = $state({
     description: '',
@@ -18,8 +19,13 @@
     category: 'other',
     payment_mode: 'Cash',
     payment_details: '',
-    expense_date: new Date().toISOString().split('T')[0]
+    expense_date: new Date().toISOString().split('T')[0],
+    created_by: '',
+    bill_url: ''
   });
+
+  let billFile = $state<File | null>(null);
+  let uploading = $state(false);
 
   $effect(() => {
     newExpense.gst_amount = (newExpense.amount * newExpense.gst_rate) / 100;
@@ -27,16 +33,59 @@
   });
 
   onMount(async () => {
-    await fetchExpenses();
+    await fetchData();
   });
 
-  async function fetchExpenses() {
-    const { data } = await supabase.from('expenses').select('*').order('expense_date', { ascending: false });
+  $effect(() => {
+    if ($financialYear) {
+      fetchData();
+    }
+  });
+
+  async function fetchData() {
+    const { start, end } = getFYDateRange($financialYear);
+    const { data: setts } = await supabase.from('company_settings').select('*');
+    companySettings = setts?.[0] || null;
+    await fetchExpenses(start, end);
+  }
+
+  async function fetchExpenses(start: string, end: string) {
+    const { data } = await supabase
+      .from('expenses')
+      .select('*')
+      .gte('expense_date', start)
+      .lte('expense_date', end)
+      .order('expense_date', { ascending: false });
     expenses = data || [];
   }
 
   async function handleAddExpense() {
-    const { error } = await supabase.from('expenses').insert(newExpense);
+    uploading = true;
+    let bill_path = '';
+
+    // Upload file if selected
+    if (billFile) {
+      const fileExt = billFile.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `expense-bills/${fileName}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('expense-bills')
+        .upload(filePath, billFile);
+
+      if (uploadError) {
+        alert('Error uploading bill: ' + uploadError.message);
+        uploading = false;
+        return;
+      }
+      bill_path = filePath;
+    }
+
+    const { error } = await supabase.from('expenses').insert({
+      ...newExpense,
+      bill_url: bill_path
+    });
+
     if (!error) {
       newExpense = { 
         description: '', 
@@ -47,11 +96,25 @@
         category: 'other', 
         payment_mode: 'Cash',
         payment_details: '',
-        expense_date: new Date().toISOString().split('T')[0] 
+        expense_date: new Date().toISOString().split('T')[0],
+        created_by: '',
+        bill_url: ''
       };
-      await fetchExpenses();
+      billFile = null;
+      uploading = false;
+      await fetchData();
+    } else {
+      uploading = false;
+      alert('Error adding expense: ' + error.message);
     }
   }
+
+  function getBillUrl(path: string) {
+    if (!path) return null;
+    const { data } = supabase.storage.from('expense-bills').getPublicUrl(path);
+    return data.publicUrl;
+  }
+
 
   async function deleteExpense(id: string) {
     if (confirm('Delete this expense?')) {
@@ -130,6 +193,19 @@
       </div>
 
       <div class="input-group">
+        <label>Recorded By (Partner)</label>
+        <select bind:value={newExpense.created_by}>
+          <option value="">Select Partner</option>
+          {#if companySettings?.partner1_name}
+            <option value={companySettings.partner1_name}>{companySettings.partner1_name}</option>
+          {/if}
+          {#if companySettings?.partner2_name}
+            <option value={companySettings.partner2_name}>{companySettings.partner2_name}</option>
+          {/if}
+        </select>
+      </div>
+
+      <div class="input-group">
         <label>Payment Mode</label>
         <select bind:value={newExpense.payment_mode}>
           <option value="Cash">💵 Cash</option>
@@ -141,9 +217,14 @@
         <label>Payment Details</label>
         <input type="text" bind:value={newExpense.payment_details} placeholder="Ref No / Cheque No" />
       </div>
+
+      <div class="input-group">
+        <label>Upload Bill (PDF/Image)</label>
+        <input type="file" accept="image/*,.pdf" onchange={(e) => billFile = e.currentTarget.files?.[0] || null} />
+      </div>
     </div>
-    <button class="add-btn" onclick={handleAddExpense}>
-      <Plus size={18} /> Add Expense
+    <button class="add-btn" onclick={handleAddExpense} disabled={uploading}>
+      <Plus size={18} /> {uploading ? 'Uploading...' : 'Add Expense'}
     </button>
   </div>
 
@@ -155,8 +236,10 @@
           <th>Date</th>
           <th>Description</th>
           <th>Category</th>
+          <th>Partner</th>
           <th>Mode</th>
           <th>Total</th>
+          <th>Bill</th>
           <th>Status</th>
           <th>Actions</th>
         </tr>
@@ -167,12 +250,22 @@
             <td>{new Date(expense.expense_date).toLocaleDateString()}</td>
             <td>{expense.description}</td>
             <td><span class="category-tag {expense.category}">{expense.category}</span></td>
+            <td>{expense.created_by || 'N/A'}</td>
             <td>
               <span class="mode-tag {expense.payment_mode?.toLowerCase()}">
                 {expense.payment_mode === 'Cash' ? '💵' : '🏦'} {expense.payment_mode}
               </span>
             </td>
             <td><strong>₹{(expense.total_with_gst || expense.amount || 0).toLocaleString()}</strong></td>
+            <td>
+              {#if expense.bill_url}
+                <a href={getBillUrl(expense.bill_url)} target="_blank" class="view-bill-link">
+                  <Wallet size={14} /> View
+                </a>
+              {:else}
+                <span class="no-bill">-</span>
+              {/if}
+            </td>
             <td class="status-cell">
               <button 
                 class="done-btn"

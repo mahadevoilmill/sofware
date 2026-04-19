@@ -22,7 +22,27 @@
     bank_name: '',
     account_no: '',
     branch_ifsc: '',
-    upi_id: ''
+    upi_id: '',
+    partner1_name: '',
+    partner1_mobile: '',
+    partner2_name: '',
+    partner2_mobile: '',
+    logo_url: ''
+  });
+
+  let logoFile = $state<File | null>(null);
+  let logoPreview = $state<string | null>(null);
+
+  $effect(() => {
+    if (logoFile) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        logoPreview = e.target?.result as string;
+      };
+      reader.readAsDataURL(logoFile);
+    } else {
+      logoPreview = null;
+    }
   });
 
   onMount(async () => {
@@ -57,26 +77,50 @@
     error = null;
 
     try {
+      let finalSettings = { ...settings };
+      
+      // Upload Logo if selected
+      if (logoFile) {
+        const fileExt = logoFile.name.split('.').pop();
+        const fileName = `logo_${Date.now()}.${fileExt}`;
+        const filePath = `branding/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('company-assets')
+          .upload(filePath, logoFile);
+
+        if (uploadError) throw new Error(`Logo Upload Failed: ${uploadError.message}`);
+        
+        const { data: urlData } = supabase.storage.from('company-assets').getPublicUrl(filePath);
+        finalSettings.logo_url = urlData.publicUrl;
+      }
+
       let result;
       if (settings.id) {
-        // Update
+        // Update existing record
+        const { id, ...dbData } = finalSettings;
         result = await supabase
           .from('company_settings')
-          .update(settings)
+          .update(dbData)
           .eq('id', settings.id);
       } else {
-        // Insert
-        const { id, ...newData } = settings;
+        // Create new record
+        const { id, ...newData } = finalSettings;
         result = await supabase
           .from('company_settings')
           .insert(newData)
           .select()
           .single();
-        if (result.data) settings.id = result.data.id;
+        if (result.data) finalSettings.id = result.data.id;
       }
 
-      if (result.error) throw result.error;
+      if (result.error) throw new Error(`Database Error: ${result.error.message}`);
+
+      settings = { ...finalSettings };
       success = true;
+      logoFile = null;
+      logoPreview = null;
+
       setTimeout(() => success = false, 3000);
     } catch (err: any) {
       error = err.message;
@@ -104,6 +148,19 @@
     <!-- Company Information -->
     <div class="settings-card">
       <h3>Company Information</h3>
+
+      <div class="logo-upload-section">
+        {#if logoPreview || settings.logo_url}
+          <div class="logo-preview">
+            <img src={logoPreview || settings.logo_url} alt="Logo Preview" />
+          </div>
+        {/if}
+        <div class="form-group">
+          <label>Company Logo</label>
+          <input type="file" accept="image/*" onchange={(e) => logoFile = e.currentTarget.files?.[0] || null} />
+          <p class="help-text">Recommended: Square PNG/JPG</p>
+        </div>
+      </div>
       <div class="form-group">
         <label>Company Name</label>
         <input type="text" bind:value={settings.company_name} placeholder="e.g. MAHADEV OIL MILL" />
@@ -135,6 +192,31 @@
       <div class="form-group">
         <label>Contact Number</label>
         <input type="text" bind:value={settings.contact_no} placeholder="Mobile / Phone" />
+      </div>
+    </div>
+
+    <!-- Partner Details -->
+    <div class="settings-card">
+      <h3>Partner Details</h3>
+      <div class="row">
+        <div class="form-group">
+          <label>Partner 1 Name</label>
+          <input type="text" bind:value={settings.partner1_name} placeholder="Name" />
+        </div>
+        <div class="form-group">
+          <label>Partner 1 Mobile</label>
+          <input type="text" bind:value={settings.partner1_mobile} placeholder="Mobile" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label>Partner 2 Name</label>
+          <input type="text" bind:value={settings.partner2_name} placeholder="Name" />
+        </div>
+        <div class="form-group">
+          <label>Partner 2 Mobile</label>
+          <input type="text" bind:value={settings.partner2_mobile} placeholder="Mobile" />
+        </div>
       </div>
     </div>
 
@@ -212,6 +294,37 @@
     font-size: 1.1rem;
     border-bottom: 1px solid #eee;
     padding-bottom: 10px;
+  }
+
+  .logo-upload-section {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+  }
+
+  .logo-preview {
+    width: 60px;
+    height: 60px;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid #ddd;
+    background: white;
+  }
+
+  .logo-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .help-text {
+    font-size: 0.75rem;
+    color: #95a5a6;
+    margin: 5px 0 0;
   }
 
   .form-group {

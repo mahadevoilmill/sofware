@@ -1,9 +1,9 @@
 <script lang="ts">
   import '../app.css';
-  import { language, translations } from '$lib/i18n';
+  import { language, translations, financialYear } from '$lib/i18n';
   import { supabase } from '$lib/supabase';
   import { onMount } from 'svelte';
-  import { LayoutDashboard, Package, Factory, ShoppingCart, Wallet, Users, FileText, Settings, LogOut, Truck, Building } from 'lucide-svelte';
+  import { LayoutDashboard, Package, Factory, ShoppingCart, Wallet, Users, FileText, Settings, LogOut, Truck, Building, Landmark } from 'lucide-svelte';
 
   let { children } = $props();
   let user = $state<any>(null);
@@ -26,6 +26,17 @@
   };
 
   const t = $derived(translations[$language]);
+
+  const financialYears = (() => {
+    const years = [];
+    const baseYear = 2024; // Starting from 2024-25
+    for (let i = 0; i < 50; i++) {
+      const start = baseYear + i;
+      const end = (start + 1).toString().slice(-2);
+      years.push(`${start}-${end}`);
+    }
+    return years;
+  })();
 </script>
 
 <div class="app-container">
@@ -43,6 +54,7 @@
         <li><a href="/expenses"><Wallet size={20} /> {t.expenses}</a></li>
         <li><a href="/customers"><Users size={20} /> {t.customers}</a></li>
         <li><a href="/suppliers"><Building size={20} /> {t.suppliers}</a></li>
+        <li><a href="/banking"><Landmark size={20} /> {t.banking}</a></li>
         <li><a href="/reports"><FileText size={20} /> {t.reports}</a></li>
         <li><a href="/settings"><Settings size={20} /> {t.settings}</a></li>
       </ul>
@@ -56,9 +68,21 @@
 
   <main class="main-content {user ? 'with-sidebar' : ''}">
     <header class="top-header">
-      <div class="lang-switch">
-        <button class:active={$language === 'en'} onclick={() => setLanguage('en')}>EN</button>
-        <button class:active={$language === 'gu'} onclick={() => setLanguage('gu')}>ગુ</button>
+      <div class="header-left">
+        {#if user}
+          <div class="fy-selector">
+            <label for="fy">FY:</label>
+            <select id="fy" bind:value={$financialYear}>
+              {#each financialYears as fy}
+                <option value={fy}>{fy}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
+        <div class="lang-switch">
+          <button class:active={$language === 'en'} onclick={() => setLanguage('en')}>EN</button>
+          <button class:active={$language === 'gu'} onclick={() => setLanguage('gu')}>ગુ</button>
+        </div>
       </div>
       {#if user}
         <div class="user-info">
@@ -176,6 +200,37 @@
     align-items: center;
     padding: 0 30px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .fy-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8f9fa;
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+  }
+
+  .fy-selector label {
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #7f8c8d;
+  }
+
+  .fy-selector select {
+    border: none;
+    background: transparent;
+    font-weight: bold;
+    color: #2c3e50;
+    cursor: pointer;
+    outline: none;
   }
 
   .lang-switch {

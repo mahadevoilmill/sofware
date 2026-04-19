@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
-  import { language, translations } from '$lib/i18n';
+  import { language, translations, financialYear, getFYDateRange } from '$lib/i18n';
   import { Package, AlertTriangle, Plus, Minus, Download, CheckCircle, Circle, Edit, Trash2, Eye, X } from 'lucide-svelte';
   import jsPDF from 'jspdf';
   import autoTable from 'jspdf-autotable';
@@ -27,17 +27,47 @@
   let selectedItemForDetails = $state<any>(null);
   let itemTransactions = $state<any[]>([]);
 
-  let viewFromDate = $state<string>(new Date().toISOString().split('T')[0]);
-  let viewToDate = $state<string>(new Date().toISOString().split('T')[0]);
+  // Date Filtering
+  const currentYear = new Date().getFullYear();
+  let selectedYear = $state<number>(currentYear);
+  let filterFromDate = $state<string>(`${selectedYear}-01-01`);
+  let filterToDate = $state<string>(`${selectedYear}-12-31`);
+  let viewFromDate = $state<string>(`${selectedYear}-01-01`);
+  let viewToDate = $state<string>(`${selectedYear}-12-31`);
+
   let todayTransactions = $state<any[]>([]);
   let showExportForm = $state(false);
-  let exportFromDate = $state<string>('');
-  let exportToDate = $state<string>(new Date().toISOString().split('T')[0]);
+  let exportFromDate = $state<string>(`${selectedYear}-01-01`);
+  let exportToDate = $state<string>(`${selectedYear}-12-31`);
   let allTransactions = $state<any[]>([]);
 
+  // Function to update filter dates based on selected year
+  function updateDateFilters() {
+    filterFromDate = `${selectedYear}-01-01`;
+    filterToDate = `${selectedYear}-12-31`;
+    viewFromDate = `${selectedYear}-01-01`;
+    viewToDate = `${selectedYear}-12-31`;
+    exportFromDate = `${selectedYear}-01-01`;
+    exportToDate = `${selectedYear}-12-31`;
+    fetchInventory(); // Re-fetch inventory as well, though it might not change per year.
+    fetchTransactions(); // Refetch transactions with new date range
+  }
+
   onMount(async () => {
+    // updateDateFilters(); // No longer needed as $effect will handle it
     await fetchInventory();
     await fetchTransactions();
+  });
+
+  $effect(() => {
+    if ($financialYear) {
+      const { start, end } = getFYDateRange($financialYear);
+      viewFromDate = start;
+      viewToDate = end;
+      exportFromDate = start;
+      exportToDate = end;
+      fetchTransactions();
+    }
   });
 
   async function fetchInventory() {
@@ -55,11 +85,12 @@
       .order('transaction_date', { ascending: false })
       .order('created_at', { ascending: false });
 
-    if (viewFromDate) {
-      query = query.gte('transaction_date', viewFromDate);
+    // Apply date range filters
+    if (filterFromDate) {
+      query = query.gte('transaction_date', filterFromDate);
     }
-    if (viewToDate) {
-      query = query.lte('transaction_date', viewToDate);
+    if (filterToDate) {
+      query = query.lte('transaction_date', filterToDate);
     }
     
     const { data } = await query;

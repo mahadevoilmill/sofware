@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
-  import { language, translations } from '$lib/i18n';
+  import { language, translations, financialYear, getFYDateRange } from '$lib/i18n';
   import jsPDF from 'jspdf';
   import { Plus, Download, Trash2, CheckCircle, Circle, Edit2 } from 'lucide-svelte';
 
@@ -22,6 +22,7 @@
     quantity: 0,
     rate: 0,
     gst_rate: 5,
+    selling_partner: '',
     payment_mode: 'Cash',
     payment_details: '',
     sale_date: new Date().toISOString().split('T')[0]
@@ -31,7 +32,14 @@
     await fetchData();
   });
 
+  $effect(() => {
+    if ($financialYear) {
+      fetchData();
+    }
+  });
+
   async function fetchData() {
+    const { start, end } = getFYDateRange($financialYear);
     try {
       console.log('Fetching company settings...');
       const { data: setts } = await supabase.from('company_settings').select('*');
@@ -55,6 +63,8 @@
           customers:customer_id(name, address, mobile, gst_number, state_name, state_code),
           inventory:product_item(item_name)
         `)
+        .gte('sales_date', start)
+        .lte('sales_date', end)
         .order('created_at', { ascending: false });
       
       if (salesError) {
@@ -124,6 +134,7 @@
       cgst,
       sgst,
       total_amount: total,
+      selling_partner: newSale.selling_partner,
       is_done: false,
       sales_date: newSale.sale_date,
       payment_mode: newSale.payment_mode,
@@ -173,6 +184,7 @@
         quantity: 0, 
         rate: 0,
         gst_rate: 5,
+        selling_partner: '',
         payment_mode: 'Cash',
         payment_details: '',
         sale_date: new Date().toISOString().split('T')[0]
@@ -221,7 +233,8 @@
         state_name: 'Gujarat',
         state_code: '24',
         contact_no: '8849735425',
-        upi_id: '8849735425@upi'
+        upi_id: '8849735425@upi',
+        logo_url: ''
       };
 
       // Generate UPI QR Code URL
@@ -232,18 +245,33 @@
       const loadImage = (url: string): Promise<HTMLImageElement> => {
         return new Promise((resolve, reject) => {
           const img = new Image();
-          img.crossOrigin = 'Anonymous';
+          img.crossOrigin = 'anonymous';
           img.onload = () => resolve(img);
-          img.onerror = (e) => reject(e);
+          img.onerror = (e) => {
+            console.error('Failed to load image:', url, e);
+            reject(e);
+          };
           img.src = url;
         });
       };
 
-      let qrImage;
+      let qrImage: HTMLImageElement | undefined;
+      let logoImage: HTMLImageElement | undefined;
+
+      // Load QR Code
       try {
         qrImage = await loadImage(qrCodeUrl);
       } catch (e) {
         console.warn('Could not load QR code', e);
+      }
+
+      // Load Logo
+      if (seller.logo_url) {
+        try {
+          logoImage = await loadImage(seller.logo_url);
+        } catch (e) {
+          console.warn('Could not load Logo image', e);
+        }
       }
 
       const drawGridInvoice = (title: string, yOffset: number) => {
@@ -263,24 +291,27 @@
         y += 7;
         const colMid = margin + (contentWidth / 2);
         
-        // Seller Info Box
-        const seller = companySettings || {
-          company_name: 'MAHADEV OIL MILL',
-          address: '902 NAGARDAS NI KHADKI, VASAD, MO NO. 9879944395',
-          gstin: '24ADIFS2075H1Z2',
-          state_name: 'Gujarat',
-          state_code: '24',
-          contact_no: '8849735425'
-        };
+        // Add Logo if exists
+        let infoX = margin + 2;
+        if (logoImage) {
+          try {
+            // Use 'alias' to automatically detect format from the HTMLImageElement
+            doc.addImage(logoImage, 'JPEG', margin + 2, y + 1, 15, 15);
+            infoX = margin + 20; // Shift text to right of logo
+          } catch (imgErr) {
+            console.error('Error drawing logo on PDF:', imgErr);
+          }
+        }
 
         doc.setFontSize(11);
-        doc.text(seller.company_name, margin + 2, y + 5);
+        doc.setFont('helvetica', 'bold');
+        doc.text(seller.company_name, infoX, y + 5);
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
-        doc.text(seller.address, margin + 2, y + 9);
-        doc.text(`GSTIN/UIN: ${seller.gstin}`, margin + 2, y + 13);
-        doc.text(`State Name: ${seller.state_name}, Code : ${seller.state_code}`, margin + 2, y + 17);
-        doc.text(`Contact: ${seller.contact_no}`, margin + 2, y + 21);
+        doc.text(seller.address, infoX, y + 9);
+        doc.text(`GSTIN/UIN: ${seller.gstin}`, infoX, y + 13);
+        doc.text(`State Name: ${seller.state_name}, Code : ${seller.state_code}`, infoX, y + 17);
+        doc.text(`Contact: ${seller.contact_no}`, infoX, y + 21);
         
         // Top Right Data Box
         doc.line(colMid, y, colMid, y + 40);
@@ -420,6 +451,13 @@
         
         doc.setFontSize(8);
         doc.text(`for ${seller.company_name}`, pageWidth - margin - 5, y + 25, { align: 'right' });
+        
+        if (sale.selling_partner) {
+          doc.setFont('helvetica', 'italic');
+          doc.text(`(Created by: ${sale.selling_partner})`, pageWidth - margin - 5, y + 29, { align: 'right' });
+        }
+        
+        doc.setFont('helvetica', 'bold');
         doc.text('Authorised Signatory', pageWidth - margin - 5, y + 35, { align: 'right' });
         
         // Add QR Code
@@ -479,6 +517,7 @@
       cgst,
       sgst,
       total_amount: total,
+      selling_partner: editingSale.selling_partner,
       sales_date: editingSale.sales_date,
       payment_mode: editingSale.payment_mode,
       payment_details: editingSale.payment_details,
@@ -522,7 +561,18 @@
 </script>
 
 <div class="sales-container">
-  <h2>{t.sales}</h2>
+  <div class="page-header-branding">
+    {#if companySettings?.logo_url}
+      <img src={companySettings.logo_url} alt="Logo" class="company-logo-ui" />
+    {/if}
+    <div class="company-info-ui">
+      <h2>{t.sales}</h2>
+      {#if companySettings}
+        <p class="company-name-subtitle">{companySettings.company_name}</p>
+        <p class="company-address-subtitle">{companySettings.address}</p>
+      {/if}
+    </div>
+  </div>
 
   <div class="sale-form-card">
     <div class="form-header">
@@ -585,6 +635,19 @@
       <div class="input-group">
         <label>Sale Date</label>
         <input type="date" bind:value={newSale.sale_date} />
+      </div>
+
+      <div class="input-group">
+        <label>Selling Partner</label>
+        <select bind:value={newSale.selling_partner}>
+          <option value="">Select Partner</option>
+          {#if companySettings?.partner1_name}
+            <option value={companySettings.partner1_name}>{companySettings.partner1_name}</option>
+          {/if}
+          {#if companySettings?.partner2_name}
+            <option value={companySettings.partner2_name}>{companySettings.partner2_name}</option>
+          {/if}
+        </select>
       </div>
 
       <div class="input-group">
@@ -676,6 +739,19 @@
         </div>
 
         <div class="input-group">
+          <label>Selling Partner</label>
+          <select bind:value={editingSale.selling_partner}>
+            <option value="">Select Partner</option>
+            {#if companySettings?.partner1_name}
+              <option value={companySettings.partner1_name}>{companySettings.partner1_name}</option>
+            {/if}
+            {#if companySettings?.partner2_name}
+              <option value={companySettings.partner2_name}>{companySettings.partner2_name}</option>
+            {/if}
+          </select>
+        </div>
+
+        <div class="input-group">
           <label>Payment Mode</label>
           <select bind:value={editingSale.payment_mode}>
             <option value="Cash">Cash</option>
@@ -759,8 +835,46 @@
 
 <style>
   .sales-container h2 {
-    margin-bottom: 30px;
+    margin: 0;
     color: #2c3e50;
+  }
+
+  .page-header-branding {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  }
+
+  .company-logo-ui {
+    width: 80px;
+    height: 80px;
+    object-fit: contain;
+    border: 1px solid #eee;
+    border-radius: 4px;
+  }
+
+  .company-info-ui {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .company-name-subtitle {
+    font-weight: bold;
+    color: #34495e;
+    margin: 0;
+    font-size: 1.1rem;
+  }
+
+  .company-address-subtitle {
+    color: #7f8c8d;
+    margin: 0;
+    font-size: 0.85rem;
   }
 
   .sale-form-card {

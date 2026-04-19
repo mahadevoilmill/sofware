@@ -4,6 +4,27 @@ export type Language = 'en' | 'gu';
 
 export const language = writable<Language>('en');
 
+// Financial Year Logic
+function getCurrentFY() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-indexed, 3 is April
+  // If before April, we are in the previous year's FY
+  const startYear = month >= 3 ? year : year - 1;
+  return `${startYear}-${(startYear + 1).toString().slice(-2)}`;
+}
+
+export const financialYear = writable<string>(getCurrentFY());
+
+export function getFYDateRange(fy: string) {
+  const startYear = parseInt(fy.split('-')[0]);
+  const endYear = startYear + 1;
+  return {
+    start: `${startYear}-04-01`,
+    end: `${endYear}-03-31`
+  };
+}
+
 export const translations = {
   en: {
     dashboard: 'Dashboard',
@@ -13,6 +34,7 @@ export const translations = {
     expenses: 'Expenses',
     customers: 'Customers',
     suppliers: 'Suppliers',
+    banking: 'Banking',
     reports: 'Reports',
     settings: 'Vendor Info',
     purchases: 'Purchases',
@@ -46,6 +68,7 @@ export const translations = {
     expenses: 'ખર્ચ',
     customers: 'ગ્રાહકો',
     suppliers: 'સપ્લાયર્સ',
+    banking: 'બેંકિંગ',
     reports: 'રિપોર્ટ્સ',
     settings: 'વેન્ડર માહિતી',
     purchases: 'ખરીદી',
