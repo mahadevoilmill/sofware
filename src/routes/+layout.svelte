@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
   import '../app.css';
   import { language, translations, financialYear } from '$lib/i18n';
   import { supabase } from '$lib/supabase';
@@ -19,6 +20,7 @@
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    goto('/login');
   };
 
   const setLanguage = (lang: 'en' | 'gu') => {
