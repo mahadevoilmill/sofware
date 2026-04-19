@@ -137,21 +137,22 @@
   }
 
   .nav-links {
-    list-style: none;
-    padding: 0;
-    margin: 20px 0;
-    flex-grow: 1;
-  }
-
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+            flex-grow: 1;
+            height: calc(100vh - 130px); /* Add scrollable height */
+            overflow-y: auto; /* Add scrollbar */
+          }
   .nav-links li a {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 15px 20px;
-    color: #bdc3c7;
-    text-decoration: none;
-    transition: all 0.3s;
-  }
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 20px;
+            color: #3498db; /* Changed to blue */
+            text-decoration: none;
+            transition: all 0.3s;
+          }
 
   .nav-links li a:hover {
     background-color: #34495e;

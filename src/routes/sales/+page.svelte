@@ -3,7 +3,8 @@
   import { supabase } from '$lib/supabase';
   import { language, translations, financialYear, getFYDateRange } from '$lib/i18n';
   import jsPDF from 'jspdf';
-  import { Plus, Download, Trash2, CheckCircle, Circle, Edit2 } from 'lucide-svelte';
+  import autoTable from 'jspdf-autotable';
+  import { Plus, Download, Trash2, CheckCircle, Circle, Edit2, FileText } from 'lucide-svelte';
 
   const t = $derived(translations[$language]);
 
@@ -22,6 +23,9 @@
     quantity: 0,
     rate: 0,
     gst_rate: 5,
+    cgst: 0,
+    sgst: 0,
+    total_amount: 0,
     selling_partner: '',
     payment_mode: 'Cash',
     payment_details: '',
@@ -51,6 +55,7 @@
       customers = custData || [];
 
       console.log('Fetching inventory...');
+      // Fetching only oil items for sales, as per the original code.
       const { data: invData, error: invError } = await supabase.from('inventory').select('*').filter('item_name', 'ilike', '%oil%').order('item_name');
       if (invError) console.error('Error fetching inventory:', invError);
       inventory = invData || [];
@@ -131,12 +136,13 @@
       customer_id: newSale.customer_id,
       quantity: newSale.quantity,
       rate: newSale.rate,
+      gst_rate: newSale.gst_rate,
       cgst,
       sgst,
       total_amount: total,
       selling_partner: newSale.selling_partner,
       is_done: false,
-      sales_date: newSale.sale_date,
+      sale_date: newSale.sale_date,
       payment_mode: newSale.payment_mode,
       payment_details: newSale.payment_details
     };
@@ -176,7 +182,7 @@
     }
 
     if (!insertError) {
-      // Reset form only on success
+      // Reset form
       newSale = { 
         customer_id: newSale.customer_id, 
         product_item: '', 
@@ -184,12 +190,14 @@
         quantity: 0, 
         rate: 0,
         gst_rate: 5,
+        cgst: 0,
+        sgst: 0,
+        total_amount: 0,
         selling_partner: '',
         payment_mode: 'Cash',
         payment_details: '',
         sale_date: new Date().toISOString().split('T')[0]
       };
-      showManualProduct = false;
       
       // Fetch updated data
       await fetchData();
@@ -268,6 +276,7 @@
       // Load Logo
       if (seller.logo_url) {
         try {
+          // Use 'alias' to automatically detect format from the HTMLImageElement
           logoImage = await loadImage(seller.logo_url);
         } catch (e) {
           console.warn('Could not load Logo image', e);
@@ -429,7 +438,7 @@
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10);
         y += 7;
-        doc.text('Total Amount', margin + 10, y); // Moved far left to description area
+        doc.text('Total Amount', margin + 2, y); // Moved far left to description area
         doc.text(`Rs. ${sale.total_amount.toLocaleString('en-IN', {minimumFractionDigits: 2})}`, cols.amt - 2, y, { align: 'right' });
         
         y += 3;
@@ -671,6 +680,18 @@
           <input type="text" bind:value={newSale.payment_details} placeholder="Enter transaction ID" />
         </div>
       {/if}
+      <div class="input-group">
+        <label>CGST (₹)</label>
+        <input type="text" value={newSale.cgst.toFixed(2)} disabled />
+      </div>
+      <div class="input-group">
+        <label>SGST (₹)</label>
+        <input type="text" value={newSale.sgst.toFixed(2)} disabled />
+      </div>
+      <div class="input-group full-width"> <!-- Make total amount span full width -->
+        <label>Total Amount (₹)</label>
+        <input type="text" value={newSale.total_amount.toFixed(2)} disabled style="font-weight: bold; font-size: 1.1rem;" />
+      </div>
     </div>
     <button class="add-btn" onclick={handleAddSale}>
       <Plus size={18} /> Add Sale
@@ -708,7 +729,7 @@
         {#if !editingSale.product_item}
           <div class="input-group">
             <label>Product Name (Manual)</label>
-            <input type="text" bind:value={editingSale.product_name} placeholder="Enter product name" />
+            <input type="text" bind:value={editingSale.product_name} />
           </div>
         {/if}
 
@@ -735,7 +756,7 @@
 
         <div class="input-group">
           <label>Sale Date</label>
-          <input type="date" bind:value={editingSale.sales_date} />
+          <input type="date" bind:value={editingSale.sale_date} />
         </div>
 
         <div class="input-group">
@@ -758,21 +779,21 @@
             <option value="Bank">Bank / Cheque</option>
             <option value="Online">Online / UPI</option>
             <option value="Credit">Credit</option>
-            </select>
-            </div>
+          </select>
+        </div>
 
-            {#if editingSale.payment_mode === 'Bank'}
-            <div class="input-group">
+        {#if editingSale.payment_mode === 'Bank'}
+          <div class="input-group">
             <label>Cheque Number / Ref</label>
-            <input type="text" bind:value={editingSale.payment_details} placeholder="Enter cheque number" />
-            </div>
-            {:else if editingSale.payment_mode === 'Online'}
-            <div class="input-group">
+            <input type="text" bind:value={editingSale.payment_details} />
+          </div>
+        {:else if editingSale.payment_mode === 'Online'}
+          <div class="input-group">
             <label>Transaction ID / UPI Ref</label>
-            <input type="text" bind:value={editingSale.payment_details} placeholder="Enter transaction ID" />
-            </div>
-            {/if}
-            </div>
+            <input type="text" bind:value={editingSale.payment_details} />
+          </div>
+        {/if}
+      </div>
       <div class="form-actions">
         <button class="btn-submit" onclick={handleUpdateSale}>Update Sale</button>
         <button class="btn-cancel" onclick={() => { showEditForm = false; editingSale = null; }}>Cancel</button>
@@ -798,7 +819,7 @@
         {#each sales as sale}
           <tr class={sale.is_done ? 'done' : ''}>
             <td>{sale.invoice_number}</td>
-            <td>{new Date(sale.sales_date + 'T00:00:00').toLocaleDateString()}</td>
+            <td>{new Date(sale.sales_date).toLocaleDateString()}</td>
             <td>{sale.customers?.name}</td>
             <td>{sale.product_name || sale.inventory?.item_name || 'N/A'}</td>
             <td>₹{sale.total_amount.toLocaleString()}</td>
@@ -885,6 +906,37 @@
     margin-bottom: 30px;
   }
 
+  .edit-form-card {
+    background: white;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+    border: 2px solid #3498db;
+  }
+
+  .form-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #ecf0f1;
+  }
+
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #95a5a6;
+    padding: 0 10px;
+  }
+
+  .close-btn:hover {
+    color: #e74c3c;
+  }
+
   .form-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -896,7 +948,8 @@
     display: block;
     margin-bottom: 5px;
     font-size: 0.9rem;
-    color: #666;
+    font-weight: 600;
+    color: #2c3e50;
   }
 
   .input-group select, .input-group input {
@@ -904,6 +957,8 @@
     padding: 10px;
     border: 1px solid #ddd;
     border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
   }
 
   .add-btn {
@@ -916,6 +971,50 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    font-weight: bold;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+  }
+
+  .btn-submit {
+    background: #27ae60;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+  }
+
+  .btn-submit:hover {
+    background: #229954;
+  }
+
+  .btn-cancel {
+    background: #bdc3c7;
+    color: #2c3e50;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+  }
+
+  .btn-cancel:hover {
+    background: #95a5a6;
+  }
+
+  .toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
   }
 
   .sales-list {
@@ -950,52 +1049,10 @@
     padding: 5px;
     border-radius: 4px;
     cursor: pointer;
+    margin-right: 5px;
   }
 
   .pdf-btn:hover {
-    background: #3498db;
-    color: white;
-  }
-
-  .form-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 2px solid #ecf0f1;
-  }
-
-  .form-header h3 {
-    margin: 0;
-    color: #2c3e50;
-  }
-
-  .toggle-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
-    color: #2c3e50;
-  }
-
-  .toggle-label input[type="checkbox"] {
-    cursor: pointer;
-    width: 18px;
-    height: 18px;
-    accent-color: #3498db;
-  }
-
-  .toggle-label span {
-    padding: 6px 12px;
-    background: #ecf0f1;
-    border-radius: 4px;
-    transition: all 0.3s ease;
-  }
-
-  .toggle-label input[type="checkbox"]:checked + span {
     background: #3498db;
     color: white;
   }
@@ -1040,28 +1097,6 @@
     color: #229954;
   }
 
-  .edit-form-card {
-    background: white;
-    padding: 25px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    margin-bottom: 30px;
-    border: 2px solid #3498db;
-  }
-
-  .close-btn {
-    background: none;
-    border: none;
-    font-size: 20px;
-    cursor: pointer;
-    color: #95a5a6;
-    padding: 0 10px;
-  }
-
-  .close-btn:hover {
-    color: #e74c3c;
-  }
-
   .edit-btn {
     background: none;
     border: 1px solid #f39c12;
@@ -1071,7 +1106,6 @@
     cursor: pointer;
     margin-right: 5px;
   }
-
   .edit-btn:hover {
     background: #f39c12;
     color: white;
@@ -1086,78 +1120,8 @@
     cursor: pointer;
     margin-left: 5px;
   }
-
   .delete-btn:hover {
     background: #e74c3c;
     color: white;
-  }
-
-  .btn-submit {
-    background: #27ae60;
-    color: white;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 14px;
-  }
-
-  .btn-submit:hover {
-    background: #229954;
-  }
-
-  .btn-cancel {
-    background: #bdc3c7;
-    color: #2c3e50;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 14px;
-  }
-
-  .btn-cancel:hover {
-    background: #95a5a6;
-  }
-
-  .form-actions {
-    display: flex;
-    gap: 10px;
-    margin-top: 15px;
-  }
-
-  .form-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    margin-bottom: 20px;
-  }
-
-  .input-group {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .input-group label {
-    font-size: 13px;
-    font-weight: 600;
-    color: #2c3e50;
-    margin-bottom: 8px;
-  }
-
-  .input-group input {
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 14px;
-    font-family: inherit;
-  }
-
-  .input-group input:focus {
-    outline: none;
-    border-color: #3498db;
-    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
   }
 </style>

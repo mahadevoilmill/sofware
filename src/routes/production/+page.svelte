@@ -243,7 +243,7 @@
         <select bind:value={production.input_item}>
           <option value="">Select Raw Material</option>
           {#each inventory.filter(i => i.item_name.includes('Raw')) as item}
-            <option value={item.id}>{item.item_name}</option>
+            <option value={item.id}>{item.item_name} ({item.unit})</option>
           {/each}
         </select>
       </div>
@@ -258,7 +258,7 @@
         <select bind:value={production.output_oil_item}>
           <option value="">Select Oil Type</option>
           {#each inventory.filter(i => i.item_name.includes('Oil')) as item}
-            <option value={item.id}>{item.item_name}</option>
+            <option value={item.id}>{item.item_name} ({item.unit})</option>
           {/each}
         </select>
       </div>

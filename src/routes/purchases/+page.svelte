@@ -23,6 +23,9 @@
     quantity: 0,
     rate: 0,
     gst_rate: 5,
+    cgst: 0,
+    sgst: 0,
+    total_amount: 0,
     payment_mode: 'Cash',
     payment_details: '',
     purchase_date: new Date().toISOString().split('T')[0],
@@ -73,6 +76,13 @@
       console.error('Unexpected error in fetchData:', err);
     }
   }
+
+  $effect(() => {
+    const totalBase = newPurchase.quantity * newPurchase.rate;
+    newPurchase.cgst = (totalBase * (newPurchase.gst_rate / 2)) / 100;
+    newPurchase.sgst = (totalBase * (newPurchase.gst_rate / 2)) / 100;
+    newPurchase.total_amount = totalBase + newPurchase.cgst + newPurchase.sgst;
+  });
 
   async function handleAddPurchase() {
     if (newPurchase.quantity <= 0 || newPurchase.rate <= 0) {
@@ -178,6 +188,9 @@
         quantity: 0, 
         rate: 0,
         gst_rate: 5,
+        cgst: 0,
+        sgst: 0,
+        total_amount: 0,
         payment_mode: 'Cash',
         payment_details: '',
         purchase_date: new Date().toISOString().split('T')[0],
@@ -298,7 +311,7 @@
           <select bind:value={newPurchase.product_item}>
             <option value="">Select Product</option>
             {#each inventory as item}
-              <option value={item.id}>{item.item_name} ({item.quantity} {item.unit} in stock)</option>
+              <option value={item.id}>{item.item_name} - {item.unit} (Stock: {item.quantity})</option>
             {/each}
           </select>
         </div>
@@ -369,6 +382,18 @@
           <input type="text" bind:value={newPurchase.payment_details} placeholder="Enter transaction ID" />
         </div>
       {/if}
+      <div class="input-group">
+        <label>CGST (₹)</label>
+        <input type="text" value={newPurchase.cgst.toFixed(2)} disabled />
+      </div>
+      <div class="input-group">
+        <label>SGST (₹)</label>
+        <input type="text" value={newPurchase.sgst.toFixed(2)} disabled />
+      </div>
+      <div class="input-group full-width"> <!-- Make total amount span full width -->
+        <label>Total Amount (₹)</label>
+        <input type="text" value={newPurchase.total_amount.toFixed(2)} disabled style="font-weight: bold; font-size: 1.1rem;" />
+      </div>
     </div>
     <button class="add-btn" onclick={handleAddPurchase} disabled={uploading}>
       <Plus size={18} /> {uploading ? 'Uploading...' : 'Add Purchase'}
