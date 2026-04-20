@@ -8,13 +8,20 @@
   let password = $state('');
   let loading = $state(false);
   let error = $state<string | null>(null);
+  let settings = $state<any>(null);
 
   onMount(async () => {
+    fetchSettings();
     const { data } = await supabase.auth.getUser();
     if (data.user) {
       goto('/dashboard');
     }
   });
+
+  async function fetchSettings() {
+    const { data } = await supabase.from('company_settings').select('logo_url, company_name').single();
+    settings = data;
+  }
 
   const t = $derived(translations[$language]);
 
@@ -39,7 +46,12 @@
 
 <div class="login-container">
   <form class="login-card" onsubmit={handleLogin}>
-    <h2>Mahadev Oil Mill</h2>
+    <div class="login-header">
+      {#if settings?.logo_url}
+        <img src={settings.logo_url} alt="Logo" class="login-logo" />
+      {/if}
+      <h2>{settings?.company_name || 'Mahadev Oil Mill'}</h2>
+    </div>
     <p>{t.login}</p>
     
     {#if error}
@@ -77,6 +89,16 @@
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     width: 100%;
     max-width: 400px;
+  }
+
+  .login-header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .login-logo {
+    max-width: 120px;
+    margin-bottom: 10px;
   }
 
   h2 {
