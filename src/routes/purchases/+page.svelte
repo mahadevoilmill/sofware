@@ -8,7 +8,6 @@
   const t = $derived(translations[$language]);
 
   let inventory = $state<any[]>([]);
-  let suppliers = $state<any[]>([]);
   let purchases = $state<any[]>([]);
   let companySettings = $state<any>(null);
   let showManualProduct = $state(false);
@@ -16,7 +15,6 @@
   let editingPurchase = $state<any>(null);
   
   let newPurchase = $state({
-    supplier_id: '',
     supplier_name: '',
     product_item: '',
     product_name: '',
@@ -55,15 +53,11 @@
       const { data: invData } = await supabase.from('inventory').select('*').order('item_name');
       inventory = invData || [];
 
-      const { data: supData } = await supabase.from('suppliers').select('*').order('name');
-      suppliers = supData || [];
-
       const { data: purData, error: purError } = await supabase
         .from('purchases')
         .select(`
           *,
-          inventory:product_item(item_name, unit),
-          suppliers:supplier_id(name)
+          inventory:product_item(item_name, unit)
         `)
         .gte('purchase_date', start)
         .lte('purchase_date', end)
@@ -90,8 +84,8 @@
       return;
     }
 
-    if (!newPurchase.supplier_id && !newPurchase.supplier_name) {
-      alert('Please select or enter supplier');
+    if (!newPurchase.supplier_name) {
+      alert('Please enter supplier name');
       return;
     }
 
@@ -142,8 +136,7 @@
 
     const purchaseData: any = {
       purchase_number,
-      supplier_id: newPurchase.supplier_id || null,
-      supplier_name: newPurchase.supplier_id ? null : newPurchase.supplier_name,
+      supplier_name: newPurchase.supplier_name,
       quantity: newPurchase.quantity,
       rate: newPurchase.rate,
       gst_rate: newPurchase.gst_rate,
@@ -181,7 +174,6 @@
       
       // Reset form
       newPurchase = { 
-        supplier_id: '',
         supplier_name: '', 
         product_item: '', 
         product_name: '',
@@ -238,8 +230,7 @@
     const total = totalBase + cgst + sgst;
 
     const updateData: any = {
-      supplier_id: editingPurchase.supplier_id || null,
-      supplier_name: editingPurchase.supplier_id ? null : editingPurchase.supplier_name,
+      supplier_name: editingPurchase.supplier_name,
       quantity: editingPurchase.quantity,
       rate: editingPurchase.rate,
       gst_rate: editingPurchase.gst_rate,
@@ -284,21 +275,9 @@
     
     <div class="form-grid">
       <div class="input-group">
-        <label>Supplier (From Directory)</label>
-        <select bind:value={newPurchase.supplier_id}>
-          <option value="">Manual Entry (below)</option>
-          {#each suppliers as supplier}
-            <option value={supplier.id}>{supplier.name}</option>
-          {/each}
-        </select>
+        <label>Supplier Name</label>
+        <input type="text" bind:value={newPurchase.supplier_name} placeholder="Enter Supplier Name" />
       </div>
-
-      {#if !newPurchase.supplier_id}
-        <div class="input-group">
-          <label>Manual Supplier Name</label>
-          <input type="text" bind:value={newPurchase.supplier_name} placeholder="Enter Supplier Name" />
-        </div>
-      {/if}
 
       {#if showManualProduct}
         <div class="input-group">
@@ -409,21 +388,9 @@
       
       <div class="form-grid">
         <div class="input-group">
-          <label>Supplier (Directory)</label>
-          <select bind:value={editingPurchase.supplier_id}>
-            <option value="">Manual Entry (below)</option>
-            {#each suppliers as supplier}
-              <option value={supplier.id}>{supplier.name}</option>
-            {/each}
-          </select>
+          <label>Supplier Name</label>
+          <input type="text" bind:value={editingPurchase.supplier_name} />
         </div>
-
-        {#if !editingPurchase.supplier_id}
-          <div class="input-group">
-            <label>Manual Supplier Name</label>
-            <input type="text" bind:value={editingPurchase.supplier_name} />
-          </div>
-        {/if}
 
         <div class="input-group">
           <label>Product (Inventory)</label>
@@ -531,7 +498,7 @@
           <tr class={pur.is_done ? 'done' : ''}>
             <td>{pur.purchase_number}</td>
             <td>{new Date(pur.purchase_date).toLocaleDateString()}</td>
-            <td>{pur.suppliers?.name || pur.supplier_name || 'N/A'}</td>
+            <td>{pur.supplier_name || 'N/A'}</td>
             <td>{pur.product_name || pur.inventory?.item_name || 'N/A'}</td>
             <td>{pur.quantity} {pur.inventory?.unit || ''}</td>
             <td>₹{pur.total_amount.toLocaleString()}</td>

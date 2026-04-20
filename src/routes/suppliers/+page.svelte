@@ -1,5 +1,15 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { supabase } from '$lib/supabase';
+  import { language, translations } from '$lib/i18n';
+  import { Plus, MapPin, Phone, Hash, Edit2, Trash2 } from 'lucide-svelte';
+
+  const t = $derived(translations[$language]);
+
   let suppliers = $state<any[]>([]);
+  let showEditForm = $state(false);
+  let editingSupplier = $state<any>(null);
+  
   let newSupplier = $state({
     name: '',
     address: '',
@@ -63,6 +73,39 @@
     if (confirm('Delete this supplier?')) {
       const { error } = await supabase.from('suppliers').delete().eq('id', id);
       if (!error) await fetchSuppliers();
+    }
+  }
+
+  function openEditForm(supplier: any) {
+    editingSupplier = { ...supplier };
+    showEditForm = true;
+  }
+
+  async function handleUpdateSupplier() {
+    if (!editingSupplier) return;
+    
+    const { error } = await supabase
+      .from('suppliers')
+      .update({
+        name: editingSupplier.name,
+        address: editingSupplier.address,
+        city: editingSupplier.city,
+        state_name: editingSupplier.state_name,
+        state_code: editingSupplier.state_code,
+        mobile: editingSupplier.mobile,
+        gst_number: editingSupplier.gst_number,
+        partner_name: editingSupplier.partner_name,
+        partner_mobile: editingSupplier.partner_mobile
+      })
+      .eq('id', editingSupplier.id);
+
+    if (!error) {
+      showEditForm = false;
+      editingSupplier = null;
+      await fetchSuppliers();
+      alert('Supplier updated successfully!');
+    } else {
+      alert('Error updating supplier: ' + error.message);
     }
   }
 </script>
@@ -140,11 +183,59 @@
             <p>Partner Mobile: {supplier.partner_mobile}</p>
           {/if}
 
-          <button class="delete-btn" onclick={() => deleteSupplier(supplier.id)}>Delete</button>
+          <button class="edit-btn" onclick={() => openEditForm(supplier)}><Edit2 size={14} /> Edit</button>
+          <button class="delete-btn" onclick={() => deleteSupplier(supplier.id)}><Trash2 size={14} /> Delete</button>
         </div>
       {/each}
     </div>
   </div>
+
+  <!-- Edit Form -->
+  {#if showEditForm && editingSupplier}
+    <div class="edit-form-overlay">
+      <div class="edit-form-card">
+        <h3>Edit Supplier</h3>
+        <div class="form-grid">
+          <div class="input-group full-width">
+            <label>Supplier Name</label>
+            <input type="text" bind:value={editingSupplier.name} />
+          </div>
+          <div class="input-group full-width">
+            <label>Address</label>
+            <textarea bind:value={editingSupplier.address}></textarea>
+          </div>
+          <div class="input-group">
+            <label>City</label>
+            <input type="text" bind:value={editingSupplier.city} />
+          </div>
+          <div class="input-group">
+            <label>Mobile</label>
+            <input type="text" bind:value={editingSupplier.mobile} />
+          </div>
+          <div class="input-group">
+            <label>GST Number</label>
+            <input type="text" bind:value={editingSupplier.gst_number} />
+          </div>
+          <div class="input-group">
+            <label>State Name</label>
+            <input type="text" bind:value={editingSupplier.state_name} />
+          </div>
+          <div class="input-group">
+            <label>Partner Name</label>
+            <input type="text" bind:value={editingSupplier.partner_name} />
+          </div>
+          <div class="input-group">
+            <label>Partner Mobile</label>
+            <input type="text" bind:value={editingSupplier.partner_mobile} />
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="save-btn" onclick={handleUpdateSupplier}>Save Changes</button>
+          <button class="cancel-btn" onclick={() => { showEditForm = false; editingSupplier = null; }}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -260,5 +351,83 @@
   .delete-btn:hover {
     background: #e74c3c;
     color: white;
+  }
+
+  .edit-btn {
+    position: absolute;
+    top: 10px;
+    right: 70px;
+    background: none;
+    border: 1px solid #3498db;
+    color: #3498db;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .edit-btn:hover {
+    background: #3498db;
+    color: white;
+  }
+
+  .supplier-card {
+    position: relative;
+  }
+
+  .edit-form-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .edit-form-card {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .edit-form-card h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  .save-btn {
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+
+  .cancel-btn {
+    background: #95a5a6;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
   }
 </style>

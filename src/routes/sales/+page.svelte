@@ -20,6 +20,7 @@
     customer_id: '',
     product_item: '',
     product_name: '',
+    hsn_sac: '',
     quantity: 0,
     unit: 'NOS', // Default unit
     rate: 0,
@@ -68,7 +69,7 @@
         .from('sales')
         .select(`
           *,
-          customers:customer_id(name, address, mobile, gst_number, state_name, state_code),
+          customers:customer_id(name, "Billing Address", mobile, gst_number),
           inventory:product_item(item_name)
         `)
         .gte('sales_date', start)
@@ -146,6 +147,7 @@
     const saleData: any = {
       invoice_number,
       customer_id: newSale.customer_id,
+      hsn_sac: newSale.hsn_sac,
       quantity: newSale.quantity,
       unit: newSale.unit,
       rate: newSale.rate,
@@ -199,6 +201,7 @@
         customer_id: newSale.customer_id, 
         product_item: '', 
         product_name: '',
+        hsn_sac: '',
         quantity: 0, 
         rate: 0,
         gst_rate: 5,
@@ -254,7 +257,8 @@
         state_code: '24',
         contact_no: '8849735425',
         upi_id: '8849735425@upi',
-        logo_url: ''
+        logo_url: '',
+        fssai_code: ''
       };
 
       // Generate UPI QR Code URL
@@ -327,12 +331,18 @@
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
         doc.text(seller.company_name, infoX, y + 5);
+        doc.text(seller.address, infoX, y + 9);
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
-        doc.text(seller.address, infoX, y + 9);
         doc.text(`GSTIN/UIN: ${seller.gstin}`, infoX, y + 13);
-        doc.text(`State Name: ${seller.state_name}, Code : ${seller.state_code}`, infoX, y + 17);
-        doc.text(`Contact: ${seller.contact_no}`, infoX, y + 21);
+        if (seller.fssai_code) {
+          doc.text(`FSSAI No.: ${seller.fssai_code}`, infoX, y + 17);
+          doc.text(`State Name: ${seller.state_name}, Code : ${seller.state_code}`, infoX, y + 21);
+          doc.text(`Contact: ${seller.contact_no}`, infoX, y + 25);
+        } else {
+          doc.text(`State Name: ${seller.state_name}, Code : ${seller.state_code}`, infoX, y + 17);
+          doc.text(`Contact: ${seller.contact_no}`, infoX, y + 21);
+        }
         
         // Top Right Data Box
         doc.line(colMid, y, colMid, y + 40);
@@ -414,7 +424,7 @@
         doc.setFont('helvetica', 'bold');
         doc.text(product, margin + 10, y);
         doc.setFont('helvetica', 'normal');
-        doc.text('39233090', cols.hsn - 13, y);
+        doc.text(sale.hsn_sac || 'N/A', cols.hsn - 13, y);
         doc.text(`${sale.quantity} NOS`, cols.qty - 13, y);
         doc.text(sale.rate.toFixed(2), cols.rate - 13, y);
         doc.text('NOS', cols.per - 8, y);
@@ -532,6 +542,7 @@
 
     const updateData: any = {
       customer_id: editingSale.customer_id,
+      hsn_sac: editingSale.hsn_sac,
       quantity: editingSale.quantity,
       rate: editingSale.rate,
       gst_rate: editingSale.gst_rate,
@@ -613,6 +624,11 @@
             <option value={customer.id}>{customer.name}</option>
           {/each}
         </select>
+      </div>
+
+      <div class="input-group">
+        <label>HSN/SAC Number</label>
+        <input type="text" bind:value={newSale.hsn_sac} placeholder="Enter HSN/SAC code" />
       </div>
 
       {#if showManualProduct}
@@ -735,6 +751,11 @@
               <option value={customer.id}>{customer.name}</option>
             {/each}
           </select>
+        </div>
+
+        <div class="input-group">
+          <label>HSN/SAC Number</label>
+          <input type="text" bind:value={editingSale.hsn_sac} placeholder="Enter HSN/SAC code" />
         </div>
 
         <div class="input-group">

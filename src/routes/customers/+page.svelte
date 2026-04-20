@@ -12,7 +12,7 @@
 
   let newCustomer = $state({
     name: '',
-    address: '',
+    'Billing Address': '',
     mobile: '',
     gst_number: '',
     state_name: 'Gujarat',
@@ -29,12 +29,6 @@
   }
 
   async function handleAddCustomer() {
-    console.log('Customer data before validation:', {
-        name: newCustomer.name.trim(),
-        billing_address: newCustomer.billing_address.trim(),
-        mobile: newCustomer.mobile.trim()
-    });
-    // Ensure values are strings before trimming to prevent errors if they are undefined/null
     const name = typeof newCustomer.name === 'string' ? newCustomer.name.trim() : '';
     const billingAddress = typeof newCustomer['Billing Address'] === 'string' ? newCustomer['Billing Address'].trim() : '';
     const mobile = typeof newCustomer.mobile === 'string' ? newCustomer.mobile.trim() : '';
@@ -44,12 +38,18 @@
         return;
     }
 
-    const { error } = await supabase.from('customers').insert(newCustomer);
+    const customerToInsert = {
+        name: name,
+        "Billing Address": billingAddress,
+        mobile: mobile,
+        gst_number: newCustomer.gst_number || ''
+    };
+
+    const { error } = await supabase.from('customers').insert(customerToInsert);
     if (!error) {
-      // Reset form and refetch customers on success
       newCustomer = { 
         name: '', 
-        billing_address: '', // Reset billing_address to empty
+        'Billing Address': '',
         mobile: '', 
         gst_number: '',
         state_name: 'Gujarat',
@@ -166,7 +166,7 @@
         <input type="text" bind:value={newCustomer.state_code} placeholder="e.g. 24" />
       </div>
     </div>
-    <button class="add-btn" onclick={() => console.log('Button clicked directly!')}>
+    <button class="add-btn" onclick={handleAddCustomer}>
       <Plus size={18} /> Add Customer
     </button>
   </div>

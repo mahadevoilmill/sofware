@@ -23,6 +23,7 @@
     account_no: '',
     branch_ifsc: '',
     upi_id: '',
+    fssai_code: '',
     partner1_name: '',
     partner1_mobile: '',
     partner2_name: '',
@@ -57,12 +58,34 @@
         .select('*')
         .single();
 
+      console.log('Fetched settings from DB:', data);
+      console.log('FSSAI code value:', data?.fssai_code);
+      
       if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is 'No rows found'
         throw fetchError;
       }
 
       if (data) {
-        settings = { ...data };
+        settings = { 
+          id: data.id || '',
+          company_name: data.company_name || '',
+          address: data.address || '',
+          gstin: data.gstin || '',
+          pan: data.pan || '',
+          state_name: data.state_name || '',
+          state_code: data.state_code || '',
+          contact_no: data.contact_no || '',
+          bank_name: data.bank_name || '',
+          account_no: data.account_no || '',
+          branch_ifsc: data.branch_ifsc || '',
+          upi_id: data.upi_id || '',
+          fssai_code: data.fssai_code || '',
+          partner1_name: data.partner1_name || '',
+          partner1_mobile: data.partner1_mobile || '',
+          partner2_name: data.partner2_name || '',
+          partner2_mobile: data.partner2_mobile || '',
+          logo_url: data.logo_url || ''
+        };
       }
     } catch (err: any) {
       error = err.message;
@@ -85,20 +108,25 @@
         const fileName = `logo_${Date.now()}.${fileExt}`;
         const filePath = `branding/${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
+        console.log('Uploading logo to company-assets bucket...');
+        const { data: uploadData, error: uploadError } = await supabase.storage
           .from('company-assets')
           .upload(filePath, logoFile);
 
+        console.log('Upload result:', uploadData, uploadError);
         if (uploadError) throw new Error(`Logo Upload Failed: ${uploadError.message}`);
         
         const { data: urlData } = supabase.storage.from('company-assets').getPublicUrl(filePath);
+        console.log('Logo URL:', urlData.publicUrl);
         finalSettings.logo_url = urlData.publicUrl;
       }
 
       let result;
+      console.log('Saving settings:', finalSettings);
       if (settings.id) {
         // Update existing record
         const { id, ...dbData } = finalSettings;
+        console.log('Updating with data:', dbData);
         result = await supabase
           .from('company_settings')
           .update(dbData)
@@ -106,6 +134,7 @@
       } else {
         // Create new record
         const { id, ...newData } = finalSettings;
+        console.log('Inserting with data:', newData);
         result = await supabase
           .from('company_settings')
           .insert(newData)
@@ -116,6 +145,7 @@
 
       if (result.error) throw new Error(`Database Error: ${result.error.message}`);
 
+      console.log('Saved settings:', finalSettings);
       settings = { ...finalSettings };
       success = true;
       logoFile = null;
@@ -177,6 +207,10 @@
         <div class="form-group">
           <label>PAN Number</label>
           <input type="text" bind:value={settings.pan} placeholder="PAN Number" />
+        </div>
+        <div class="form-group">
+          <label>FSSAI Number</label>
+          <input type="text" bind:value={settings.fssai_code} placeholder="FSSAI Number" />
         </div>
       </div>
       <div class="row">
