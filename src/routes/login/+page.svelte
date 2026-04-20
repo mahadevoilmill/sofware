@@ -97,8 +97,13 @@
   }
 
   .login-logo {
-    max-width: 120px;
+    max-width: 100px; /* Adjusted for better mobile fit */
+    width: 100%;
+    height: auto;
     margin-bottom: 10px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   h2 {
