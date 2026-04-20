@@ -8,15 +8,31 @@
 
   let { children } = $props();
   let user = $state<any>(null);
+  let settings = $state<any>(null);
 
   onMount(async () => {
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
-    
-    supabase.auth.onAuthStateChange((_event, session) => {
-      user = session?.user ?? null;
+    // Get initial session
+    supabase.auth.getUser().then(({ data }) => {
+      user = data.user;
+      fetchSettings();
     });
+    
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      user = session?.user ?? null;
+      if (user) fetchSettings();
+    });
+
+    // Cleanup: unsubscribe when the layout unmounts
+    return () => {
+      subscription.unsubscribe();
+    };
   });
+
+  async function fetchSettings() {
+    const { data } = await supabase.from('company_settings').select('logo_url, company_name').single();
+    settings = data;
+  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -45,24 +61,27 @@
   {#if user}
     <nav class="sidebar">
       <div class="logo">
-        <h1>Mahadev Oil Mill</h1>
+        {#if settings?.logo_url}
+          <img src={settings.logo_url} alt="Logo" class="sidebar-logo" />
+        {/if}
+        <h1>{settings?.company_name || 'Mahadev Oil Mill'}</h1>
       </div>
       <ul class="nav-links">
-        <li><a href="/dashboard"><LayoutDashboard size={20} /> {t.dashboard}</a></li>
-        <li><a href="/inventory"><Package size={20} /> {t.inventory}</a></li>
-        <li><a href="/production"><Factory size={20} /> {t.production}</a></li>
-        <li><a href="/purchases"><Truck size={20} /> {t.purchases}</a></li>
-        <li><a href="/sales"><ShoppingCart size={20} /> {t.sales}</a></li>
-        <li><a href="/expenses"><Wallet size={20} /> {t.expenses}</a></li>
-        <li><a href="/customers"><Users size={20} /> {t.customers}</a></li>
-        <li><a href="/suppliers"><Building size={20} /> {t.suppliers}</a></li>
-        <li><a href="/banking"><Landmark size={20} /> {t.banking}</a></li>
-        <li><a href="/reports"><FileText size={20} /> {t.reports}</a></li>
-        <li><a href="/settings"><Settings size={20} /> {t.settings}</a></li>
+        <li><a href="/dashboard"><LayoutDashboard size={20} /> <span>{t.dashboard}</span></a></li>
+        <li><a href="/inventory"><Package size={20} /> <span>{t.inventory}</span></a></li>
+        <li><a href="/production"><Factory size={20} /> <span>{t.production}</span></a></li>
+        <li><a href="/purchases"><Truck size={20} /> <span>{t.purchases}</span></a></li>
+        <li><a href="/sales"><ShoppingCart size={20} /> <span>{t.sales}</span></a></li>
+        <li><a href="/expenses"><Wallet size={20} /> <span>{t.expenses}</span></a></li>
+        <li><a href="/customers"><Users size={20} /> <span>{t.customers}</span></a></li>
+        <li><a href="/suppliers"><Building size={20} /> <span>{t.suppliers}</span></a></li>
+        <li><a href="/banking"><Landmark size={20} /> <span>{t.banking}</span></a></li>
+        <li><a href="/reports"><FileText size={20} /> <span>{t.reports}</span></a></li>
+        <li><a href="/settings"><Settings size={20} /> <span>{t.settings}</span></a></li>
       </ul>
       <div class="sidebar-footer">
         <button onclick={handleLogout} class="logout-btn">
-          <LogOut size={20} /> {t.logout}
+          <LogOut size={20} /> <span>{t.logout}</span>
         </button>
       </div>
     </nav>
@@ -130,6 +149,12 @@
     padding: 20px;
     text-align: center;
     border-bottom: 1px solid #34495e;
+  }
+
+  .sidebar-logo {
+    max-width: 100%;
+    max-height: 80px;
+    object-fit: contain;
   }
 
   .logo h1 {

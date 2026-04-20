@@ -140,6 +140,7 @@
       quantity: newPurchase.quantity,
       rate: newPurchase.rate,
       gst_rate: newPurchase.gst_rate,
+      hsn_sac: newPurchase.hsn_sac,
       cgst,
       sgst,
       total_amount: total,
@@ -315,6 +316,11 @@
           <option value={18}>18%</option>
           <option value={28}>28%</option>
         </select>
+      </div>
+
+      <div class="input-group">
+        <label>HSN/SAC Code</label>
+        <input type="text" bind:value={newPurchase.hsn_sac} placeholder="e.g. 1508" />
       </div>
 
       <div class="input-group">

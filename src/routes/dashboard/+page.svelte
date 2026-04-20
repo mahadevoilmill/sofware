@@ -55,18 +55,22 @@
     const { data: inventory } = await supabase.from('inventory').select('quantity');
 
     // Fetch expenses
-    const { data: expenses } = await supabase
+    const { data: expenses, error: expError } = await supabase
       .from('expenses')
       .select('amount, total_with_gst, expense_date')
       .gte('expense_date', start)
-      .lte('expense_date', end);
+      .lte('expense_date', end + 'T23:59:59'); // Append time to cover end of day
+
+    if (expError) console.error('Error fetching expenses:', expError);
 
     // Fetch purchases
-    const { data: purchases } = await supabase
+    const { data: purchases, error: purError } = await supabase
       .from('purchases')
       .select('total_amount, purchase_date')
       .gte('purchase_date', start)
-      .lte('purchase_date', end);
+      .lte('purchase_date', end + 'T23:59:59');
+
+    if (purError) console.error('Error fetching purchases:', purError);
 
 
     // Fetch production
@@ -332,8 +336,6 @@
   .stat-icon.stock { background-color: #2ecc71; }
   .stat-icon.expenses { background-color: #e74c3c; }
   .stat-icon.profit { background-color: #f1c40f; }
-  .stat-icon.purchases { background-color: #e67e22; }
-  .stat-icon.customers { background-color: #9b59b6; }
   .stat-icon.cash { background-color: #27ae60; }
   .stat-icon.bank { background-color: #2980b9; }
 

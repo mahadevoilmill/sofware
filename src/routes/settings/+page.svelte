@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
   import { language, translations } from '$lib/i18n';
-  import { Save, RefreshCw } from 'lucide-svelte';
+  import { Save, RefreshCw, Trash2, Edit } from 'lucide-svelte';
 
   const t = $derived(translations[$language]);
 
@@ -26,8 +26,16 @@
     fssai_code: '',
     partner1_name: '',
     partner1_mobile: '',
+    partner1_investment_cash: 0,
+    partner1_investment_bank: 0,
+    partner1_investment_date: new Date().toISOString().split('T')[0],
+    partner1_investment_year: new Date().getFullYear().toString(),
     partner2_name: '',
     partner2_mobile: '',
+    partner2_investment_cash: 0,
+    partner2_investment_bank: 0,
+    partner2_investment_date: new Date().toISOString().split('T')[0],
+    partner2_investment_year: new Date().getFullYear().toString(),
     logo_url: ''
   });
 
@@ -46,9 +54,78 @@
     }
   });
 
+  let investments = $state<any[]>([]);
+  let newInvestment = $state({
+    id: null as string | null,
+    partner_name: '',
+    amount_cash: 0,
+    amount_bank: 0,
+    investment_date: new Date().toISOString().split('T')[0],
+    investment_year: '2024-25'
+  });
+
   onMount(async () => {
     await fetchSettings();
+    await fetchInvestments();
   });
+
+  async function fetchInvestments() {
+    const { data, error: invError } = await supabase
+      .from('partner_investments')
+      .select('*')
+      .order('investment_date', { ascending: false });
+    
+    if (!invError) {
+      investments = data || [];
+    }
+  }
+
+  async function handleAddInvestment() {
+    if (!newInvestment.partner_name || !newInvestment.investment_year) {
+      alert('Please fill partner name and year');
+      return;
+    }
+
+    let result;
+    if (newInvestment.id) {
+      const { id, ...data } = newInvestment;
+      result = await supabase.from('partner_investments').update(data).eq('id', id);
+    } else {
+      const { id, ...data } = newInvestment;
+      result = await supabase.from('partner_investments').insert(data);
+    }
+
+    if (result.error) {
+      alert('Error saving investment: ' + result.error.message);
+    } else {
+      newInvestment = {
+        id: null,
+        partner_name: '',
+        amount_cash: 0,
+        amount_bank: 0,
+        investment_date: new Date().toISOString().split('T')[0],
+        investment_year: '2024-25'
+      };
+      await fetchInvestments();
+      alert('Investment saved successfully!');
+    }
+  }
+
+  async function deleteInvestment(id: string) {
+    if (confirm('Delete this investment entry?')) {
+      const { error: delError } = await supabase.from('partner_investments').delete().eq('id', id);
+      if (delError) {
+        alert('Error deleting investment: ' + delError.message);
+      } else {
+        await fetchInvestments();
+        alert('Investment deleted!');
+      }
+    }
+  }
+
+  async function editInvestment(inv: any) {
+    newInvestment = { ...inv };
+  }
 
   async function fetchSettings() {
     loading = true;
@@ -58,9 +135,6 @@
         .select('*')
         .single();
 
-      console.log('Fetched settings from DB:', data);
-      console.log('FSSAI code value:', data?.fssai_code);
-      
       if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is 'No rows found'
         throw fetchError;
       }
@@ -82,8 +156,16 @@
           fssai_code: data.fssai_code || '',
           partner1_name: data.partner1_name || '',
           partner1_mobile: data.partner1_mobile || '',
+          partner1_investment_cash: data.partner1_investment_cash || 0,
+          partner1_investment_bank: data.partner1_investment_bank || 0,
+          partner1_investment_date: data.partner1_investment_date || new Date().toISOString().split('T')[0],
+          partner1_investment_year: data.partner1_investment_year || new Date().getFullYear().toString(),
           partner2_name: data.partner2_name || '',
           partner2_mobile: data.partner2_mobile || '',
+          partner2_investment_cash: data.partner2_investment_cash || 0,
+          partner2_investment_bank: data.partner2_investment_bank || 0,
+          partner2_investment_date: data.partner2_investment_date || new Date().toISOString().split('T')[0],
+          partner2_investment_year: data.partner2_investment_year || new Date().getFullYear().toString(),
           logo_url: data.logo_url || ''
         };
       }
@@ -108,25 +190,20 @@
         const fileName = `logo_${Date.now()}.${fileExt}`;
         const filePath = `branding/${fileName}`;
 
-        console.log('Uploading logo to company-assets bucket...');
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('company-assets')
           .upload(filePath, logoFile);
 
-        console.log('Upload result:', uploadData, uploadError);
         if (uploadError) throw new Error(`Logo Upload Failed: ${uploadError.message}`);
         
         const { data: urlData } = supabase.storage.from('company-assets').getPublicUrl(filePath);
-        console.log('Logo URL:', urlData.publicUrl);
         finalSettings.logo_url = urlData.publicUrl;
       }
 
       let result;
-      console.log('Saving settings:', finalSettings);
       if (settings.id) {
         // Update existing record
         const { id, ...dbData } = finalSettings;
-        console.log('Updating with data:', dbData);
         result = await supabase
           .from('company_settings')
           .update(dbData)
@@ -134,7 +211,6 @@
       } else {
         // Create new record
         const { id, ...newData } = finalSettings;
-        console.log('Inserting with data:', newData);
         result = await supabase
           .from('company_settings')
           .insert(newData)
@@ -145,7 +221,6 @@
 
       if (result.error) throw new Error(`Database Error: ${result.error.message}`);
 
-      console.log('Saved settings:', finalSettings);
       settings = { ...finalSettings };
       success = true;
       logoFile = null;
@@ -232,24 +307,34 @@
     <!-- Partner Details -->
     <div class="settings-card">
       <h3>Partner Details</h3>
-      <div class="row">
-        <div class="form-group">
-          <label>Partner 1 Name</label>
-          <input type="text" bind:value={settings.partner1_name} placeholder="Name" />
-        </div>
-        <div class="form-group">
-          <label>Partner 1 Mobile</label>
-          <input type="text" bind:value={settings.partner1_mobile} placeholder="Mobile" />
+      
+      <!-- Partner 1 -->
+      <div class="partner-group">
+        <h4>Partner 1</h4>
+        <div class="row">
+          <div class="form-group">
+            <label>Name</label>
+            <input type="text" bind:value={settings.partner1_name} placeholder="Name" />
+          </div>
+          <div class="form-group">
+            <label>Mobile</label>
+            <input type="text" bind:value={settings.partner1_mobile} placeholder="Mobile" />
+          </div>
         </div>
       </div>
-      <div class="row">
-        <div class="form-group">
-          <label>Partner 2 Name</label>
-          <input type="text" bind:value={settings.partner2_name} placeholder="Name" />
-        </div>
-        <div class="form-group">
-          <label>Partner 2 Mobile</label>
-          <input type="text" bind:value={settings.partner2_mobile} placeholder="Mobile" />
+
+      <!-- Partner 2 -->
+      <div class="partner-group" style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
+        <h4>Partner 2</h4>
+        <div class="row">
+          <div class="form-group">
+            <label>Name</label>
+            <input type="text" bind:value={settings.partner2_name} placeholder="Name" />
+          </div>
+          <div class="form-group">
+            <label>Mobile</label>
+            <input type="text" bind:value={settings.partner2_mobile} placeholder="Mobile" />
+          </div>
         </div>
       </div>
     </div>
@@ -272,6 +357,101 @@
       <div class="form-group">
         <label>UPI ID (for QR Code)</label>
         <input type="text" bind:value={settings.upi_id} placeholder="e.g. 8849735425@upi" />
+      </div>
+    </div>
+  </div>
+
+  <div class="header" style="margin-top: 50px;">
+    <h2>Partner Investment Tracking</h2>
+    <p>Record and view investment history year by year</p>
+  </div>
+
+  <div class="settings-grid">
+    <!-- Add Investment Entry -->
+    <div class="settings-card">
+      <h3>{newInvestment.id ? 'Edit' : 'Add'} Investment Entry</h3>
+      <div class="form-group">
+        <label>Partner Name</label>
+        <select bind:value={newInvestment.partner_name}>
+          <option value="">Select Partner</option>
+          {#if settings.partner1_name}<option value={settings.partner1_name}>{settings.partner1_name}</option>{/if}
+          {#if settings.partner2_name}<option value={settings.partner2_name}>{settings.partner2_name}</option>{/if}
+        </select>
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label>Amount (Cash)</label>
+          <input type="number" bind:value={newInvestment.amount_cash} placeholder="₹ 0.00" />
+        </div>
+        <div class="form-group">
+          <label>Amount (Bank)</label>
+          <input type="number" bind:value={newInvestment.amount_bank} placeholder="₹ 0.00" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" bind:value={newInvestment.investment_date} />
+        </div>
+        <div class="form-group">
+          <label>Year</label>
+          <select bind:value={newInvestment.investment_year}>
+            {#each Array.from({ length: 50 }, (_, i) => {
+              const start = 2020 + i;
+              return `${start}-${(start + 1).toString().slice(-2)}`;
+            }) as year}
+              <option value={year}>{year}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
+      <button class="save-btn" style="width: 100%; margin-top: 10px;" onclick={handleAddInvestment}>
+        <Save size={18} /> {newInvestment.id ? 'Update' : 'Add'} Entry
+      </button>
+      {#if newInvestment.id}
+        <button class="btn-cancel" style="width: 100%; margin-top: 10px;" onclick={() => newInvestment = { id: null, partner_name: '', amount_cash: 0, amount_bank: 0, investment_date: new Date().toISOString().split('T')[0], investment_year: '2024-25' }}>
+          Cancel
+        </button>
+      {/if}
+    </div>
+
+    <!-- Investment History -->
+    <div class="settings-card" style="grid-column: span 2;">
+      <h3>Investment History (Year Wise)</h3>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th>Partner</th>
+              <th>Date</th>
+              <th>Cash</th>
+              <th>Bank</th>
+              <th>Total</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each investments as inv}
+              <tr>
+                <td><strong>{inv.investment_year}</strong></td>
+                <td>{inv.partner_name}</td>
+                <td>{new Date(inv.investment_date).toLocaleDateString()}</td>
+                <td>₹{inv.amount_cash.toLocaleString()}</td>
+                <td>₹{inv.amount_bank.toLocaleString()}</td>
+                <td><strong>₹{(inv.amount_cash + inv.amount_bank).toLocaleString()}</strong></td>
+                <td class="actions-cell">
+                  <button class="icon-btn edit" onclick={() => editInvestment(inv)} title="Edit"><Edit size={16} /></button>
+                  <button class="icon-btn delete" onclick={() => deleteInvestment(inv.id)} title="Delete"><Trash2 size={16} /></button>
+                </td>
+              </tr>
+            {:else}
+              <tr>
+                <td colspan="7" style="text-align: center; color: #95a5a6; padding: 20px;">No investment entries found.</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -422,6 +602,21 @@
     cursor: not-allowed;
   }
 
+  .btn-cancel {
+    background: #bdc3c7;
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+
+  .btn-cancel:hover {
+    background: #95a5a6;
+  }
+
   .error-banner {
     background: #fdeaea;
     color: #e74c3c;
@@ -438,6 +633,61 @@
     border-radius: 4px;
     margin-bottom: 20px;
     border-left: 4px solid #27ae60;
+  }
+
+  .table-container {
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+
+  th, td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+  }
+
+  th {
+    color: #7f8c8d;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  td {
+    font-size: 0.9rem;
+    color: #2c3e50;
+  }
+
+  .actions-cell {
+    display: flex;
+    gap: 5px;
+  }
+
+  .icon-btn {
+    background: none;
+    border: 1px solid #eee;
+    padding: 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #95a5a6;
+    transition: all 0.2s;
+  }
+
+  .icon-btn.edit:hover {
+    color: #3498db;
+    border-color: #3498db;
+    background: rgba(52, 152, 219, 0.1);
+  }
+
+  .icon-btn.delete:hover {
+    color: #e74c3c;
+    border-color: #e74c3c;
+    background: rgba(231, 76, 60, 0.1);
   }
 
   .spin {

@@ -23,6 +23,7 @@
   // Item state
   let newItemName = $state('');
   let newItemUnit = $state('kg');
+  let newItemHsnSac = $state(''); // New field
   let editingItem = $state<any>(null);
   let selectedItemForDetails = $state<any>(null);
   let itemTransactions = $state<any[]>([]);
@@ -118,7 +119,7 @@
     if (editingItem) {
       const { error } = await supabase
         .from('inventory')
-        .update({ item_name: newItemName, unit: newItemUnit })
+        .update({ item_name: newItemName, unit: newItemUnit, hsn_sac: newItemHsnSac })
         .eq('id', editingItem.id);
       
       if (!error) {
@@ -129,7 +130,7 @@
     } else {
       const { error } = await supabase
         .from('inventory')
-        .insert({ item_name: newItemName, unit: newItemUnit, quantity: 0 });
+        .insert({ item_name: newItemName, unit: newItemUnit, quantity: 0, hsn_sac: newItemHsnSac });
       
       if (error) {
         alert(error.message);
@@ -138,6 +139,7 @@
 
     newItemName = '';
     newItemUnit = 'kg';
+    newItemHsnSac = '';
     showItemForm = false;
     await fetchInventory();
   }
@@ -165,6 +167,7 @@
     editingItem = item;
     newItemName = item.item_name;
     newItemUnit = item.unit;
+    newItemHsnSac = item.hsn_sac || '';
     showItemForm = true;
   }
 
@@ -447,6 +450,10 @@
               <option value="tin">tin</option>
             </select>
           </div>
+          <div class="form-group">
+            <label for="itemHsn">HSN/SAC Code</label>
+            <input type="text" id="itemHsn" bind:value={newItemHsnSac} placeholder="e.g. 1508" />
+          </div>
           <div class="form-actions">
             <button type="submit" class="btn-submit">{editingItem ? 'Update' : 'Add'}</button>
             <button type="button" class="btn-cancel" onclick={() => showItemForm = false}>Cancel</button>
@@ -663,6 +670,11 @@
             <span class="label">Total Stock</span>
             <span class="value {item.quantity < 50 ? 'low-stock' : ''}">{item.quantity}</span>
             <span class="unit">{item.unit}</span>
+          </div>
+
+          <div class="hsn-sac">
+            <span class="label">HSN/SAC:</span>
+            <span class="value">{item.hsn_sac || '-'}</span>
           </div>
 
           <div class="stock-breakdown">
@@ -1104,6 +1116,19 @@
     background: #ecf0f1;
     border-radius: 6px;
   }
+
+  .hsn-sac {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    font-size: 0.85rem;
+    color: #7f8c8d;
+    background: #f8f9fa;
+    padding: 5px;
+    border-radius: 4px;
+  }
+
+  .hsn-sac .label { font-weight: 600; }
 
   .total-stock .label {
     display: block;

@@ -53,7 +53,7 @@
 
     <div class="input-group">
       <label for="password">Password</label>
-      <input type="password" id="password" bind:value={password} required />
+      <input type="password" id="password" bind:value={password} required autocomplete="current-password" />
     </div>
 
     <button type="submit" disabled={loading}>
