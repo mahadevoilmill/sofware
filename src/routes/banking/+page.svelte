@@ -507,7 +507,7 @@
       <tbody>
         {#each transactions as tx}
           <tr class={tx.type}>
-            <td>{new Date(tx.transaction_date).toLocaleDateString()}</td>
+            <td>{new Date(tx.transaction_date).toLocaleDateString("en-IN")}</td>
             <td><strong>{tx.partner_name}</strong></td>
             <td>
               <span class="type-tag {tx.type}">

@@ -81,8 +81,32 @@
       bill_path = filePath;
     }
 
+    // Generate year-wise voucher number
+    const expenseDate = new Date(newExpense.expense_date);
+    const year = expenseDate.getFullYear();
+    const month = expenseDate.getMonth();
+    const fyStart = month >= 3 ? year : year - 1;
+    const fyEnd = (fyStart + 1) % 100;
+    const fyString = `${fyStart}-${fyEnd.toString().padStart(2, '0')}`;
+
+    const { data: existingVouchers } = await supabase
+      .from('expenses')
+      .select('voucher_number')
+      .like('voucher_number', `EXP-${fyString}-%`)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    let nextNum = 1;
+    if (existingVouchers && existingVouchers.length > 0) {
+      const lastVoucher = existingVouchers[0].voucher_number;
+      const lastNum = parseInt(lastVoucher.split('-').pop() || '0', 10);
+      nextNum = lastNum + 1;
+    }
+    const voucher_number = `EXP-${fyString}-${nextNum.toString().padStart(3, '0')}`;
+
     const { error } = await supabase.from('expenses').insert({
       ...newExpense,
+      voucher_number,
       bill_url: bill_path
     });
 
@@ -103,6 +127,7 @@
       billFile = null;
       uploading = false;
       await fetchData();
+      alert('Expense added successfully! Voucher: ' + voucher_number);
     } else {
       uploading = false;
       alert('Error adding expense: ' + error.message);
@@ -247,7 +272,7 @@
       <tbody>
         {#each expenses as expense}
           <tr class={expense.is_done ? 'done' : ''}>
-            <td>{new Date(expense.expense_date).toLocaleDateString()}</td>
+            <td>{new Date(expense.expense_date).toLocaleDateString("en-IN")}</td>
             <td>{expense.description}</td>
             <td><span class="category-tag {expense.category}">{expense.category}</span></td>
             <td>{expense.created_by || 'N/A'}</td>

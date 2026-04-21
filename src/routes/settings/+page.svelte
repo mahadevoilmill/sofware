@@ -436,7 +436,7 @@
               <tr>
                 <td><strong>{inv.investment_year}</strong></td>
                 <td>{inv.partner_name}</td>
-                <td>{new Date(inv.investment_date).toLocaleDateString()}</td>
+                <td>{new Date(inv.investment_date).toLocaleDateString("en-IN")}</td>
                 <td>₹{inv.amount_cash.toLocaleString()}</td>
                 <td>₹{inv.amount_bank.toLocaleString()}</td>
                 <td><strong>₹{(inv.amount_cash + inv.amount_bank).toLocaleString()}</strong></td>

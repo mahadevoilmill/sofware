@@ -545,7 +545,6 @@
       hsn_sac: editingSale.hsn_sac,
       quantity: editingSale.quantity,
       rate: editingSale.rate,
-      gst_rate: editingSale.gst_rate,
       cgst,
       sgst,
       total_amount: total,
@@ -639,11 +638,12 @@
       {:else}
         <div class="input-group">
           <label>{t.product}</label>
-          <select bind:value={newSale.product_item}>
+          <select bind:value={newSale.product_item} onchange={() => {
+            const item = inventory.find(i => i.id === newSale.product_item);
+            if (item) newSale.hsn_sac = item.hsn_sac || '';
+          }}>
             <option value="">Select Product</option>
-            {#each inventory as item}
-              <option value={item.id}>{item.item_name} ({item.quantity} available)</option>
-            {/each}
+            {#each inventory as item} <option value={item.id}>{item.item_name} ({item.quantity} available)</option> {/each}
           </select>
         </div>
       {/if}
@@ -861,7 +861,7 @@
         {#each sales as sale}
           <tr class={sale.is_done ? 'done' : ''}>
             <td>{sale.invoice_number}</td>
-            <td>{new Date(sale.sales_date).toLocaleDateString()}</td>
+            <td>{new Date(sale.sales_date).toLocaleDateString("en-IN")}</td>
             <td>{sale.customers?.name}</td>
             <td>{sale.product_name || sale.inventory?.item_name || 'N/A'}</td>
             <td>₹{sale.total_amount.toLocaleString()}</td>

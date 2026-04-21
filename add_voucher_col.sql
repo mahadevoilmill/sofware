@@ -1,0 +1,1 @@
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS voucher_number TEXT;

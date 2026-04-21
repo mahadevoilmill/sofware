@@ -503,7 +503,7 @@
         {#each purchases as pur}
           <tr class={pur.is_done ? 'done' : ''}>
             <td>{pur.purchase_number}</td>
-            <td>{new Date(pur.purchase_date).toLocaleDateString()}</td>
+            <td>{new Date(pur.purchase_date).toLocaleDateString("en-IN")}</td>
             <td>{pur.supplier_name || 'N/A'}</td>
             <td>{pur.product_name || pur.inventory?.item_name || 'N/A'}</td>
             <td>{pur.quantity} {pur.inventory?.unit || ''}</td>

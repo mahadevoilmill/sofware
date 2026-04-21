@@ -17,6 +17,7 @@
   let production = $state({
     input_item: '',
     input_qty: 0,
+    hsn_sac: '', // New field
     output_oil_item: '',
     output_oil_qty: 0,
     output_khali_qty: 0,
@@ -55,6 +56,7 @@
     const { error } = await supabase.from('production').insert({
       input_item: production.input_item,
       input_qty: production.input_qty,
+      hsn_sac: production.hsn_sac,
       output_oil_item: production.output_oil_item,
       output_oil_qty: production.output_oil_qty,
       output_khali_qty: production.output_khali_qty,
@@ -74,6 +76,7 @@
       production = { 
         input_item: '', 
         input_qty: 0, 
+        hsn_sac: '',
         output_oil_item: '', 
         output_oil_qty: 0, 
         output_khali_qty: 0,
@@ -251,6 +254,11 @@
       <div class="input-group">
         <label>Input Quantity (kg)</label>
         <input type="number" bind:value={production.input_qty} step="0.01" />
+      </div>
+
+      <div class="input-group">
+        <label>HSN/SAC Code</label>
+        <input type="text" bind:value={production.hsn_sac} placeholder="e.g. 1508" />
       </div>
 
       <div class="input-group">

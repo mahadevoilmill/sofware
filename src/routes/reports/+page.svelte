@@ -23,8 +23,8 @@
 
   function exportToCSV() {
     const headers = ['Date', 'Type', 'Description', 'Amount'];
-    const salesRows = sales.map(s => [new Date(s.created_at).toLocaleDateString(), 'Sale', s.invoice_number, s.total_amount]);
-    const expenseRows = expenses.map(e => [new Date(e.expense_date).toLocaleDateString(), 'Expense', e.description, e.amount]);
+    const salesRows = sales.map(s => [new Date(s.created_at).toLocaleDateString("en-IN"), 'Sale', s.invoice_number, s.total_amount]);
+    const expenseRows = expenses.map(e => [new Date(e.expense_date).toLocaleDateString("en-IN"), 'Expense', e.description, e.amount]);
     
     const csvContent = [
       headers.join(','),
@@ -85,7 +85,7 @@
       <tbody>
         {#each sales as sale}
           <tr>
-            <td>{new Date(sale.created_at).toLocaleDateString()}</td>
+            <td>{new Date(sale.created_at).toLocaleDateString("en-IN")}</td>
             <td>Sale</td>
             <td>{sale.invoice_number}</td>
             <td class="amt-pos">₹{sale.total_amount.toLocaleString()}</td>
@@ -93,7 +93,7 @@
         {/each}
         {#each expenses as expense}
           <tr>
-            <td>{new Date(expense.expense_date).toLocaleDateString()}</td>
+            <td>{new Date(expense.expense_date).toLocaleDateString("en-IN")}</td>
             <td>Expense</td>
             <td>{expense.description}</td>
             <td class="amt-neg">₹{expense.amount.toLocaleString()}</td>

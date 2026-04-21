@@ -309,7 +309,7 @@
   function formatDateDisplay() {
     if (viewFromDate === viewToDate) {
       try {
-        return new Date(viewFromDate + 'T00:00:00').toLocaleDateString();
+        return new Date(viewFromDate + 'T00:00:00').toLocaleDateString("en-IN");
       } catch {
         return viewFromDate;
       }
@@ -565,7 +565,7 @@
               <tbody>
                 {#each itemTransactions as trans}
                   <tr>
-                    <td>{new Date(trans.transaction_date).toLocaleDateString()}</td>
+                    <td>{new Date(trans.transaction_date).toLocaleDateString("en-IN")}</td>
                     <td class={trans.transaction_type}>
                       {trans.transaction_type === 'stock_in' ? '📥 IN' : '📤 OUT'}
                     </td>
@@ -611,7 +611,7 @@
             <div class="trans-info">
               <div class="trans-meta">
                 <span class="item-name">{trans.inventory.item_name}</span>
-                <span class="trans-date">{new Date(trans.transaction_date).toLocaleDateString()}</span>
+                <span class="trans-date">{new Date(trans.transaction_date).toLocaleDateString("en-IN")}</span>
               </div>
               <span class="qty-unit">{trans.quantity} {trans.inventory.unit}</span>
               {#if trans.notes}
