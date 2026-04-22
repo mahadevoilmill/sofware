@@ -654,11 +654,13 @@
       </div>
 
       <div class="input-group">
-        <label>Unit</label>
+        <label>Packing</label>
         <select bind:value={newSale.unit}>
+          <option value="1kg Jar">1kg Jar</option>
+          <option value="5kg Jar">5kg Jar</option>
+          <option value="15kg Jar">15kg Jar</option>
+          <option value="1kg Plastic Bag">1kg Plastic Bag</option>
           <option value="NOS">NOS</option>
-          <option value="KG">KG</option>
-          <option value="LTR">LTR</option>
         </select>
       </div>
 
