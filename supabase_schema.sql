@@ -119,3 +119,7 @@ insert into inventory (item_name, quantity, unit) values
 ('Sesame Oil', 0, 'liter'),
 ('Khali', 0, 'kg')
 on conflict (item_name) do nothing;
+
+-- Added payment columns
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_mode TEXT DEFAULT 'Cash';
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_details TEXT;

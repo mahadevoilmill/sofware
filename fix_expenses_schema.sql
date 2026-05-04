@@ -1,0 +1,2 @@
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_mode TEXT DEFAULT 'Cash';
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_details TEXT;

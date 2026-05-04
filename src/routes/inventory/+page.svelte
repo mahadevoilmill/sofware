@@ -332,11 +332,6 @@
 
     // Fetch transactions for the date range
     const transactions = await fetchTransactionsByDateRange(exportFromDate, exportToDate);
-    
-    if (transactions.length === 0) {
-      alert('No transactions found for this date range');
-      return;
-    }
 
     // Prepare data for PDF
     const tableData = transactions.map(t => [
@@ -356,22 +351,25 @@
     doc.setFontSize(10);
     doc.text(`From: ${exportFromDate} To: ${exportToDate}`, 20, 25);
 
-    autoTable(doc, {
-      head: [['Date', 'Item', 'Type', 'Qty', 'Unit', 'Notes']],
-      body: tableData,
-      startY: 35,
-      didDrawPage: function(data) {
-        // Footer
-        const pageSize = doc.internal.pageSize;
-        const pageHeight = pageSize.getHeight();
-        doc.setFontSize(8);
-        doc.text(
-          'Generated on: ' + new Date().toLocaleString(),
-          20,
-          pageHeight - 10
-        );
-      }
-    });
+    if (transactions.length === 0) {
+      doc.text('No transactions found for this date range.', 20, 35);
+    } else {
+      autoTable(doc, {
+        head: [['Date', 'Item', 'Type', 'Qty', 'Unit', 'Notes']],
+        body: tableData,
+        startY: 35
+      });
+    }
+
+    // Footer
+    const pageSize = doc.internal.pageSize;
+    const pageHeight = pageSize.getHeight();
+    doc.setFontSize(8);
+    doc.text(
+      'Generated on: ' + new Date().toLocaleString(),
+      20,
+      pageHeight - 10
+    );
 
     doc.save(`inventory-report-${exportFromDate}-to-${exportToDate}.pdf`);
     showExportForm = false;

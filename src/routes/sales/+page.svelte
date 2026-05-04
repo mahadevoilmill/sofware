@@ -854,6 +854,7 @@
           <th>Date</th>
           <th>Customer</th>
           <th>Product</th>
+          <th>Quantity</th>
           <th>Total</th>
           <th>Status</th>
           <th>Actions</th>
@@ -862,10 +863,11 @@
       <tbody>
         {#each sales as sale}
           <tr class={sale.is_done ? 'done' : ''}>
-            <td>{sale.invoice_number}</td>
+            <td>{sale.invoice_number?.toString().includes('MAHADEV') ? sale.invoice_number : `MAHADEV-2026-27-${sale.invoice_number?.toString().padStart(4, '0')}`}</td>
             <td>{new Date(sale.sales_date).toLocaleDateString("en-IN")}</td>
             <td>{sale.customers?.name}</td>
             <td>{sale.product_name || sale.inventory?.item_name || 'N/A'}</td>
+            <td>{sale.quantity} {sale.unit || 'NOS'}</td>
             <td>₹{sale.total_amount.toLocaleString()}</td>
             <td class="status-cell">
               <button 
