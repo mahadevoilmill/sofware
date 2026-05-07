@@ -101,6 +101,17 @@
     }
   }
 
+  function formatInvoiceDisplay(sale: any) {
+    const inv = sale.invoice_number?.toString() || '';
+    if (inv.includes('MAHADEV')) return inv;
+    const d = new Date(sale.sales_date);
+    const y = d.getFullYear();
+    const m = d.getMonth();
+    const fs = m >= 3 ? y : y - 1;
+    const fe = (fs + 1) % 100;
+    return `MAHADEV-${fs}-${fe.toString().padStart(2, '0')}-${inv.padStart(4, '0')}`;
+  }
+
   async function handleAddSale() {
     // Validation
     if (!newSale.customer_id) {
@@ -129,20 +140,28 @@
     const sgst = (totalBase * (newSale.gst_rate / 2)) / 100;
     const total = totalBase + cgst + sgst;
 
-    // Get next invoice number by finding the highest existing number
+    // Get next invoice number per financial year
+    const saleDate = new Date(newSale.sale_date);
+    const year = saleDate.getFullYear();
+    const month = saleDate.getMonth();
+    const fyStart = month >= 3 ? year : year - 1;
+    const fyEnd = (fyStart + 1) % 100;
+    const fyString = `${fyStart}-${fyEnd.toString().padStart(2, '0')}`;
+
     const { data: existingInvoices } = await supabase
       .from('sales')
       .select('invoice_number')
+      .like('invoice_number', `MAHADEV-${fyString}-%`)
       .order('created_at', { ascending: false })
       .limit(1);
 
     let nextNum = 1;
     if (existingInvoices && existingInvoices.length > 0) {
       const lastInvoice = existingInvoices[0].invoice_number;
-      const lastNum = parseInt(lastInvoice.replace('MAHADEV-', ''), 10);
+      const lastNum = parseInt(lastInvoice.split('-').pop() || '0', 10);
       nextNum = lastNum + 1;
     }
-    const invoice_number = `MAHADEV-${nextNum.toString().padStart(3, '0')}`;
+    const invoice_number = `MAHADEV-${fyString}-${nextNum.toString().padStart(3, '0')}`;
 
     const saleData: any = {
       invoice_number,
@@ -351,7 +370,7 @@
         doc.text('Voucher No.', colMid + 2, y + 4);
         doc.text('Dated', rightCol + 2, y + 4);
         doc.setFont('helvetica', 'bold');
-        doc.text(sale.invoice_number, colMid + 2, y + 8);
+        doc.text(formatInvoiceDisplay(sale), colMid + 2, y + 8);
         doc.text(new Date(sale.sales_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }), rightCol + 2, y + 8);
         
         doc.line(colMid, y + 10, pageWidth - margin, y + 10);
@@ -863,7 +882,7 @@
       <tbody>
         {#each sales as sale}
           <tr class={sale.is_done ? 'done' : ''}>
-            <td>{sale.invoice_number?.toString().includes('MAHADEV') ? sale.invoice_number : `MAHADEV-2026-27-${sale.invoice_number?.toString().padStart(4, '0')}`}</td>
+            <td>{formatInvoiceDisplay(sale)}</td>
             <td>{new Date(sale.sales_date).toLocaleDateString("en-IN")}</td>
             <td>{sale.customers?.name}</td>
             <td>{sale.product_name || sale.inventory?.item_name || 'N/A'}</td>
