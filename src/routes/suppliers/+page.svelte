@@ -49,7 +49,16 @@
       alert('Please enter supplier name');
       return;
     }
-    const { error } = await supabase.from('suppliers').insert(newSupplier);
+    const supplierToInsert = {
+        ...newSupplier,
+        name: newSupplier.name.toUpperCase(),
+        address: newSupplier.address?.toUpperCase(),
+        city: newSupplier.city?.toUpperCase(),
+        state_name: newSupplier.state_name?.toUpperCase(),
+        gst_number: newSupplier.gst_number?.toUpperCase(),
+        partner_name: newSupplier.partner_name?.toUpperCase()
+    };
+    const { error } = await supabase.from('suppliers').insert(supplierToInsert);
     if (!error) {
       newSupplier = { 
         name: '', 
@@ -87,14 +96,14 @@
     const { error } = await supabase
       .from('suppliers')
       .update({
-        name: editingSupplier.name,
-        address: editingSupplier.address,
-        city: editingSupplier.city,
-        state_name: editingSupplier.state_name,
+        name: editingSupplier.name?.toUpperCase(),
+        address: editingSupplier.address?.toUpperCase(),
+        city: editingSupplier.city?.toUpperCase(),
+        state_name: editingSupplier.state_name?.toUpperCase(),
         state_code: editingSupplier.state_code,
         mobile: editingSupplier.mobile,
-        gst_number: editingSupplier.gst_number,
-        partner_name: editingSupplier.partner_name,
+        gst_number: editingSupplier.gst_number?.toUpperCase(),
+        partner_name: editingSupplier.partner_name?.toUpperCase(),
         partner_mobile: editingSupplier.partner_mobile
       })
       .eq('id', editingSupplier.id);

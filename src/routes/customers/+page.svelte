@@ -39,10 +39,10 @@
     }
 
     const customerToInsert = {
-        name: name,
-        "Billing Address": billingAddress,
+        name: name.toUpperCase(),
+        "Billing Address": billingAddress.toUpperCase(),
         mobile: mobile,
-        gst_number: newCustomer.gst_number || ''
+        gst_number: newCustomer.gst_number?.toUpperCase() || ''
     };
 
     const { error } = await supabase.from('customers').insert(customerToInsert);
@@ -72,7 +72,14 @@
   async function handleUpdateCustomer() {
     if (!editingCustomer) return;
     const { id, ...updateData } = editingCustomer;
-    const { error } = await supabase.from('customers').update(updateData).eq('id', id);
+    const formattedUpdateData = {
+        ...updateData,
+        name: updateData.name?.toUpperCase(),
+        "Billing Address": updateData["Billing Address"]?.toUpperCase(),
+        gst_number: updateData.gst_number?.toUpperCase(),
+        state_name: updateData.state_name?.toUpperCase()
+    };
+    const { error } = await supabase.from('customers').update(formattedUpdateData).eq('id', id);
     if (!error) {
       showEditForm = false;
       editingCustomer = null;

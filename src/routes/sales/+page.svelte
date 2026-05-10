@@ -166,18 +166,18 @@
     const saleData: any = {
       invoice_number,
       customer_id: newSale.customer_id,
-      hsn_sac: newSale.hsn_sac,
+      hsn_sac: newSale.hsn_sac.toUpperCase(),
       quantity: newSale.quantity,
-      unit: newSale.unit,
+      unit: newSale.unit.toUpperCase(),
       rate: newSale.rate,
       cgst: cgst,
       sgst: sgst,
       total_amount: total_amount,
-      selling_partner: newSale.selling_partner,
+      selling_partner: newSale.selling_partner.toUpperCase(),
       is_done: false,
       sales_date: newSale.sale_date,
-      payment_mode: newSale.payment_mode,
-      payment_details: newSale.payment_details
+      payment_mode: newSale.payment_mode.toUpperCase(),
+      payment_details: newSale.payment_details.toUpperCase()
     };
 
     let insertError = false;

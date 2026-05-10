@@ -136,26 +136,26 @@
 
     const purchaseData: any = {
       purchase_number,
-      supplier_name: newPurchase.supplier_name,
+      supplier_name: newPurchase.supplier_name.toUpperCase(),
       quantity: newPurchase.quantity,
       rate: newPurchase.rate,
       gst_rate: newPurchase.gst_rate,
-      hsn_sac: newPurchase.hsn_sac,
+      hsn_sac: newPurchase.hsn_sac?.toUpperCase(),
       cgst,
       sgst,
       total_amount: total,
       is_done: false,
       purchase_date: newPurchase.purchase_date,
-      payment_mode: newPurchase.payment_mode,
-      payment_details: newPurchase.payment_details,
+      payment_mode: newPurchase.payment_mode.toUpperCase(),
+      payment_details: newPurchase.payment_details.toUpperCase(),
       bill_url: bill_path,
-      created_by: newPurchase.created_by
+      created_by: newPurchase.created_by.toUpperCase()
     };
 
     if (!showManualProduct && newPurchase.product_item) {
       purchaseData.product_item = newPurchase.product_item;
     } else {
-      purchaseData.product_name = newPurchase.product_name;
+      purchaseData.product_name = newPurchase.product_name.toUpperCase();
     }
 
     const { error } = await supabase.from('purchases').insert(purchaseData);
