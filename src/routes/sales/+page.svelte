@@ -22,8 +22,8 @@
     product_name: '',
     hsn_sac: '',
     quantity: 0,
-    unit: 'NOS', // Default unit
-    rate: 0,
+    unit: 'NOS', 
+    total_amount: 0, // Now input
     gst_rate: 5,
     selling_partner: '',
     payment_mode: 'Cash',
@@ -31,10 +31,19 @@
     sale_date: new Date().toISOString().split('T')[0]
   });
 
-  const totalBase = $derived(newSale.quantity * newSale.rate);
-  const cgst = $derived((totalBase * (newSale.gst_rate / 2)) / 100);
-  const sgst = $derived((totalBase * (newSale.gst_rate / 2)) / 100);
-  const total_amount = $derived(totalBase + cgst + sgst);
+  const base_and_tax = $derived.by(() => {
+    const total = newSale.total_amount;
+    const gst = newSale.gst_rate / 100;
+    // total = base + base * gst => base = total / (1 + gst)
+    const base = total / (1 + gst);
+    const tax = total - base;
+    return {
+      base: base,
+      cgst: tax / 2,
+      sgst: tax / 2,
+      rate: newSale.quantity > 0 ? base / newSale.quantity : 0
+    };
+  });
 
   onMount(async () => {
     await fetchData();
@@ -119,8 +128,8 @@
       return;
     }
 
-    if (newSale.quantity <= 0 || newSale.rate <= 0) {
-      alert('Please enter valid quantity and rate');
+    if (newSale.quantity <= 0 || newSale.total_amount <= 0) {
+      alert('Please enter valid quantity and total amount');
       return;
     }
 
@@ -169,10 +178,10 @@
       hsn_sac: newSale.hsn_sac.toUpperCase(),
       quantity: newSale.quantity,
       unit: newSale.unit.toUpperCase(),
-      rate: newSale.rate,
-      cgst: cgst,
-      sgst: sgst,
-      total_amount: total_amount,
+      rate: base_and_tax.rate,
+      cgst: base_and_tax.cgst,
+      sgst: base_and_tax.sgst,
+      total_amount: newSale.total_amount,
       selling_partner: newSale.selling_partner.toUpperCase(),
       is_done: false,
       sales_date: newSale.sale_date,
@@ -443,10 +452,10 @@
         doc.setFont('helvetica', 'bold');
         doc.text(product, margin + 10, y);
         doc.setFont('helvetica', 'normal');
-        doc.text(sale.hsn_sac || 'N/A', cols.hsn - 13, y);
-        doc.text(`${sale.quantity} NOS`, cols.qty - 13, y);
+        doc.text(sale.hsn_sac || 'N/A', cols.hsn - 8, y);
+        doc.text(`${sale.quantity} ${sale.unit || 'NOS'}`, cols.qty - 13, y);
         doc.text(sale.rate.toFixed(2), cols.rate - 13, y);
-        doc.text('NOS', cols.per - 8, y);
+        doc.text(sale.unit || 'NOS', cols.per - 8, y);
         doc.text( (sale.quantity * sale.rate).toLocaleString('en-IN', {minimumFractionDigits: 2}), cols.amt - 2, y, { align: 'right' });
 
         y = tableBottom;
@@ -546,7 +555,10 @@
   }
 
   async function openEditForm(sale: any) {
-    editingSale = { ...sale };
+    editingSale = { 
+      ...sale,
+      unit: sale.unit || 'kg' // Ensure a default value
+    };
     showEditForm = true;
   }
 
@@ -563,6 +575,7 @@
       customer_id: editingSale.customer_id,
       hsn_sac: editingSale.hsn_sac,
       quantity: editingSale.quantity,
+      unit: editingSale.unit,
       rate: editingSale.rate,
       cgst,
       sgst,
@@ -673,19 +686,20 @@
       </div>
 
       <div class="input-group">
-        <label>Packing</label>
+        <label>Unit</label>
         <select bind:value={newSale.unit}>
-          <option value="1kg Jar">1kg Jar</option>
-          <option value="5kg Jar">5kg Jar</option>
-          <option value="15kg Jar">15kg Jar</option>
-          <option value="1kg Plastic Bag">1kg Plastic Bag</option>
-          <option value="NOS">NOS</option>
+          <option value="kg">kg</option>
+          <option value="nos">nos</option>
+          <option value="ltr">ltr</option>
+          <option value="loose">loose</option>
+          <option value="jar">jar</option>
+          <option value="bottle">bottle</option>
         </select>
       </div>
 
       <div class="input-group">
-        <label>{t.rate}</label>
-        <input type="number" bind:value={newSale.rate} min="1" step="0.01" />
+        <label>Total Amount (₹)</label>
+        <input type="number" bind:value={newSale.total_amount} min="0" step="0.01" />
       </div>
 
       <div class="input-group">
@@ -739,16 +753,16 @@
         </div>
       {/if}
       <div class="input-group">
+        <label>Calculated Rate (₹)</label>
+        <input type="text" value={base_and_tax.rate.toFixed(2)} disabled />
+      </div>
+      <div class="input-group">
         <label>CGST (₹)</label>
-        <input type="text" value={cgst.toFixed(2)} disabled />
+        <input type="text" value={base_and_tax.cgst.toFixed(2)} disabled />
       </div>
       <div class="input-group">
         <label>SGST (₹)</label>
-        <input type="text" value={sgst.toFixed(2)} disabled />
-      </div>
-      <div class="input-group full-width"> <!-- Make total amount span full width -->
-        <label>Total Amount (₹)</label>
-        <input type="text" value={total_amount.toFixed(2)} disabled style="font-weight: bold; font-size: 1.1rem;" />
+        <input type="text" value={base_and_tax.sgst.toFixed(2)} disabled />
       </div>
     </div>
     <button class="add-btn" onclick={handleAddSale}>
@@ -802,6 +816,18 @@
         </div>
 
         <div class="input-group">
+          <label>Unit</label>
+          <select bind:value={editingSale.unit}>
+            <option value="kg">kg</option>
+            <option value="nos">nos</option>
+            <option value="ltr">ltr</option>
+            <option value="loose">loose</option>
+            <option value="jar">jar</option>
+            <option value="bottle">bottle</option>
+          </select>
+        </div>
+
+        <div class="input-group">
           <label>Rate</label>
           <input type="number" bind:value={editingSale.rate} step="0.01" />
         </div>
@@ -819,7 +845,7 @@
 
         <div class="input-group">
           <label>Sale Date</label>
-          <input type="date" bind:value={editingSale.sale_date} />
+          <input type="date" bind:value={editingSale.sales_date} />
         </div>
 
         <div class="input-group">

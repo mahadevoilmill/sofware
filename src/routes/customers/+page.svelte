@@ -180,31 +180,41 @@
 
   <div class="customers-list">
     <h3>Customer Directory</h3>
-    <div class="list-grid">
-      {#each customers as customer}
-        <div class="customer-card">
-          <div class="card-header-row">
-            <h4>{customer.name}</h4>
-            <div class="card-actions">
-              <button class="icon-btn edit" onclick={() => openEditForm(customer)} title="Edit">
-                <Edit size={16} />
-              </button>
-              <button class="icon-btn delete" onclick={() => deleteCustomer(customer.id)} title="Delete">
-                <Trash2 size={16} />
-              </button>
-            </div>
-          </div>
-          {#if customer['Billing Address']}
-            <p class="address">{customer['Billing Address']}</p>
-          {/if}
-          <div class="customer-meta">
-            <p><Phone size={14} /> {customer.mobile || 'N/A'}</p>
-            <p><Hash size={14} /> GST: {customer.gst_number || 'N/A'}</p>
-            <p><strong>State:</strong> {customer.state_name} ({customer.state_code})</p>
-          </div>
-        </div>
-      {/each}
-    </div>
+    <table class="customer-table">
+      <thead>
+        <tr>
+          <th>Sr. No.</th>
+          <th>Name</th>
+          <th>Address</th>
+          <th>Mobile</th>
+          <th>GST Number</th>
+          <th>State</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each customers as customer, i}
+          <tr>
+            <td>{i + 1}</td>
+            <td>{customer.name}</td>
+            <td>{customer['Billing Address'] || 'N/A'}</td>
+            <td>{customer.mobile || 'N/A'}</td>
+            <td>{customer.gst_number || 'N/A'}</td>
+            <td>{customer.state_name || ''} ({customer.state_code || ''})</td>
+            <td>
+              <div class="card-actions">
+                <button class="icon-btn edit" onclick={() => openEditForm(customer)} title="Edit">
+                  <Edit size={16} />
+                </button>
+                <button class="icon-btn delete" onclick={() => deleteCustomer(customer.id)} title="Delete">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
   </div>
 </div>
 
@@ -307,81 +317,33 @@
     font-weight: 600;
   }
 
-  .list-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
-  }
-
-  .customer-card {
+  .customer-table {
+    width: 100%;
+    border-collapse: collapse;
     background: white;
-    padding: 20px;
     border-radius: 8px;
+    overflow: hidden;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    border-left: 4px solid #3498db;
   }
 
-  .customer-card h4 {
-    margin: 0;
-    color: #2c3e50;
-  }
-
-  .card-header-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 10px;
+  .customer-table th, .customer-table td {
+    padding: 12px 15px;
+    text-align: left;
     border-bottom: 1px solid #eee;
-    padding-bottom: 5px;
+  }
+
+  .customer-table th {
+    background-color: #f8f9fa;
+    color: #2c3e50;
+    font-weight: 600;
+  }
+
+  .customer-table tr:hover {
+    background-color: #f1f7fb;
   }
 
   .card-actions {
     display: flex;
     gap: 5px;
-  }
-
-  .icon-btn {
-    background: none;
-    border: 1px solid #eee;
-    padding: 4px;
-    border-radius: 4px;
-    cursor: pointer;
-    color: #95a5a6;
-    transition: all 0.2s;
-  }
-
-  .icon-btn.edit:hover {
-    color: #3498db;
-    border-color: #3498db;
-    background: rgba(52, 152, 219, 0.1);
-  }
-
-  .icon-btn.delete:hover {
-    color: #e74c3c;
-    border-color: #e74c3c;
-    background: rgba(231, 76, 60, 0.1);
-  }
-
-  .customer-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
-
-  .customer-card p {
-    margin: 0;
-    font-size: 0.9rem;
-    color: #7f8c8d;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .customer-card p.address {
-    font-size: 0.85rem;
-    color: #95a5a6;
-    margin-bottom: 10px;
-    display: block;
-    font-style: italic;
   }
 </style>

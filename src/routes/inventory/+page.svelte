@@ -443,9 +443,11 @@
             <label for="itemUnit">Unit</label>
             <select id="itemUnit" bind:value={newItemUnit}>
               <option value="kg">kg</option>
-              <option value="liter">liter</option>
-              <option value="bag">bag</option>
-              <option value="tin">tin</option>
+              <option value="nos">nos</option>
+              <option value="ltr">ltr</option>
+              <option value="loose">loose</option>
+              <option value="jar">jar</option>
+              <option value="bottle">bottle</option>
             </select>
           </div>
           <div class="form-group">
@@ -609,7 +611,7 @@
             <div class="trans-info">
               <div class="trans-meta">
                 <span class="item-name">{trans.inventory.item_name}</span>
-                <span class="trans-date">{new Date(trans.transaction_date).toLocaleDateString("en-IN")}</span>
+                <span class="trans-date">{new Date(trans.transaction_date + 'T00:00:00').toLocaleDateString("en-IN")}</span>
               </div>
               <span class="qty-unit">{trans.quantity} {trans.inventory.unit}</span>
               {#if trans.notes}

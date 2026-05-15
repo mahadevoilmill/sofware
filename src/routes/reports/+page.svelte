@@ -9,12 +9,28 @@
   let sales = $state<any[]>([]);
   let expenses = $state<any[]>([]);
   
-  let totalSales = $derived(sales.reduce((acc, curr) => acc + (curr.total_amount || 0), 0));
-  let totalExpenses = $derived(expenses.reduce((acc, curr) => acc + (curr.amount || 0), 0));
+  let selectedMonth = $state(new Date().toISOString().slice(0, 7));
+
+  let filteredSales = $derived(sales
+    .filter(s => s.sales_date?.startsWith(selectedMonth))
+    .sort((a, b) => new Date(a.sales_date).getTime() - new Date(b.sales_date).getTime()));
+  let filteredExpenses = $derived(expenses
+    .filter(e => e.expense_date?.startsWith(selectedMonth))
+    .sort((a, b) => new Date(e.expense_date).getTime() - new Date(b.expense_date).getTime()));
+  
+  let salesTotals = $derived(filteredSales.reduce((acc, curr) => ({
+    rate: acc.rate + (curr.rate || 0),
+    cgst: acc.cgst + (curr.cgst || 0),
+    sgst: acc.sgst + (curr.sgst || 0),
+    total: acc.total + (curr.total_amount || 0)
+  }), { rate: 0, cgst: 0, sgst: 0, total: 0 }));
+
+  let totalSales = $derived(filteredSales.reduce((acc, curr) => acc + (curr.total_amount || 0), 0));
+  let totalExpenses = $derived(filteredExpenses.reduce((acc, curr) => acc + (curr.amount || 0), 0));
   let netProfit = $derived(totalSales - totalExpenses);
 
   onMount(async () => {
-    const { data: sData } = await supabase.from('sales').select('*');
+    const { data: sData } = await supabase.from('sales').select('*, customers(name)');
     sales = sData || [];
 
     const { data: eData } = await supabase.from('expenses').select('*');
@@ -22,21 +38,58 @@
   });
 
   function exportToCSV() {
-    const headers = ['Date', 'Type', 'Description', 'Amount'];
-    const salesRows = sales.map(s => [new Date(s.created_at).toLocaleDateString("en-IN"), 'Sale', s.invoice_number, s.total_amount]);
-    const expenseRows = expenses.map(e => [new Date(e.expense_date).toLocaleDateString("en-IN"), 'Expense', e.description, e.amount]);
+    const salesHeaders = ['Date', 'Invoice #', 'Customer', 'Product', 'HSN/SAC', 'Quantity', 'Unit', 'Rate', 'CGST', 'SGST', 'Total Amount', 'Selling Partner', 'Payment Mode', 'Payment Details'];
+    const expenseHeaders = ['Date', 'Description', 'Category', 'Amount', 'Payment Mode', 'Payment Details'];
+    
+    const salesRows = filteredSales.map(s => [
+      new Date(s.sales_date).toLocaleDateString("en-IN"),
+      s.invoice_number,
+      (s.customers as any)?.name || 'N/A',
+      s.product_name || s.inventory?.item_name || 'N/A',
+      s.hsn_sac || '',
+      s.quantity,
+      s.unit,
+      s.rate.toFixed(2),
+      s.cgst.toFixed(2),
+      s.sgst.toFixed(2),
+      s.total_amount.toFixed(2),
+      s.selling_partner || '',
+      s.payment_mode || '',
+      s.payment_details || ''
+    ]);
+
+    const salesTotal = filteredSales.reduce((acc, curr) => acc + (curr.total_amount || 0), 0);
+    const salesTotalRow = ['', '', '', '', '', '', '', salesTotals.rate.toFixed(2), salesTotals.cgst.toFixed(2), salesTotals.sgst.toFixed(2), salesTotal.toFixed(2), '', '', ''];
+
+    const expenseRows = filteredExpenses.map(e => [
+      new Date(e.expense_date).toLocaleDateString("en-IN"),
+      e.description,
+      e.category || '',
+      e.amount.toFixed(2),
+      e.payment_mode || '',
+      e.payment_details || ''
+    ]);
+
+    const expenseTotal = filteredExpenses.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+    const expenseTotalRow = ['', '', 'TOTAL:', expenseTotal.toFixed(2), '', ''];
     
     const csvContent = [
-      headers.join(','),
-      ...salesRows.map(r => r.join(',')),
-      ...expenseRows.map(r => r.join(','))
+      '--- SALES ---',
+      salesHeaders.join(','),
+      ...salesRows.map(r => r.map(cell => `"${cell}"`).join(',')),
+      salesTotalRow.map(cell => `"${cell}"`).join(','),
+      '',
+      '--- EXPENSES ---',
+      expenseHeaders.join(','),
+      ...expenseRows.map(r => r.map(cell => `"${cell}"`).join(',')),
+      expenseTotalRow.map(cell => `"${cell}"`).join(',')
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `mahadev_oil_mill_report_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `mahadev_full_report_${selectedMonth}.csv`;
     a.click();
   }
 </script>
@@ -44,9 +97,12 @@
 <div class="reports-container">
   <div class="header">
     <h2>{t.reports}</h2>
-    <button class="export-btn" onclick={exportToCSV}>
-      <FileSpreadsheet size={18} /> Export CSV
-    </button>
+    <div style="display: flex; gap: 10px; align-items: center;">
+      <input type="month" bind:value={selectedMonth} />
+      <button class="export-btn" onclick={exportToCSV}>
+        <FileSpreadsheet size={18} /> Export CSV
+      </button>
+    </div>
   </div>
 
   <div class="summary-cards">
@@ -72,34 +128,55 @@
   </div>
 
   <div class="report-details">
-    <h3>Transaction History</h3>
+    <h3>Transaction History ({selectedMonth})</h3>
     <table>
       <thead>
         <tr>
-          <th>Date</th>
-          <th>Type</th>
           <th>Description</th>
+          <th>Date</th>
+          <th>Customer</th>
+          <th>Type</th>
+          <th>Rate</th>
+          <th>CGST</th>
+          <th>SGST</th>
           <th>Amount</th>
         </tr>
       </thead>
       <tbody>
-        {#each sales as sale}
+        {#each filteredSales as sale}
           <tr>
-            <td>{new Date(sale.created_at).toLocaleDateString("en-IN")}</td>
-            <td>Sale</td>
             <td>{sale.invoice_number}</td>
+            <td>{new Date(sale.sales_date).toLocaleDateString("en-IN")}</td>
+            <td>{(sale.customers as any)?.name || 'N/A'}</td>
+            <td>Sale</td>
+            <td>{sale.rate.toFixed(2)}</td>
+            <td>{sale.cgst.toFixed(2)}</td>
+            <td>{sale.sgst.toFixed(2)}</td>
             <td class="amt-pos">₹{sale.total_amount.toLocaleString()}</td>
           </tr>
         {/each}
-        {#each expenses as expense}
+        {#each filteredExpenses as expense}
           <tr>
-            <td>{new Date(expense.expense_date).toLocaleDateString("en-IN")}</td>
-            <td>Expense</td>
             <td>{expense.description}</td>
+            <td>{new Date(expense.expense_date).toLocaleDateString("en-IN")}</td>
+            <td>N/A</td>
+            <td>Expense</td>
+            <td>-</td>
+            <td>-</td>
+            <td>-</td>
             <td class="amt-neg">₹{expense.amount.toLocaleString()}</td>
           </tr>
         {/each}
       </tbody>
+      <tfoot>
+        <tr style="font-weight: bold; background-color: #f9f9f9;">
+          <td colspan="4">TOTALS</td>
+          <td>{salesTotals.rate.toFixed(2)}</td>
+          <td>{salesTotals.cgst.toFixed(2)}</td>
+          <td>{salesTotals.sgst.toFixed(2)}</td>
+          <td class="amt-pos">₹{salesTotals.total.toLocaleString()}</td>
+        </tr>
+      </tfoot>
     </table>
   </div>
 </div>
