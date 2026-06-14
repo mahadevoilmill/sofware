@@ -144,43 +144,22 @@
       return;
     }
 
-    const totalBase = newSale.quantity * newSale.rate;
-    const cgst = (totalBase * (newSale.gst_rate / 2)) / 100;
-    const sgst = (totalBase * (newSale.gst_rate / 2)) / 100;
-    const total = totalBase + cgst + sgst;
-
-    // Get next invoice number per financial year
-    const saleDate = new Date(newSale.sale_date);
-    const year = saleDate.getFullYear();
-    const month = saleDate.getMonth();
-    const fyStart = month >= 3 ? year : year - 1;
-    const fyEnd = (fyStart + 1) % 100;
-    const fyString = `${fyStart}-${fyEnd.toString().padStart(2, '0')}`;
-
-    const { data: existingInvoices } = await supabase
-      .from('sales')
-      .select('invoice_number')
-      .like('invoice_number', `MAHADEV-${fyString}-%`)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    let nextNum = 1;
-    if (existingInvoices && existingInvoices.length > 0) {
-      const lastInvoice = existingInvoices[0].invoice_number;
-      const lastNum = parseInt(lastInvoice.split('-').pop() || '0', 10);
-      nextNum = lastNum + 1;
-    }
-    const invoice_number = `MAHADEV-${fyString}-${nextNum.toString().padStart(3, '0')}`;
+    const gst = newSale.gst_rate / 100;
+    const base = newSale.total_amount / (1 + gst);
+    const tax = newSale.total_amount - base;
+    const cgst = tax / 2;
+    const sgst = tax / 2;
+    const rate = newSale.quantity > 0 ? base / newSale.quantity : 0;
 
     const saleData: any = {
-      invoice_number,
       customer_id: newSale.customer_id,
       hsn_sac: newSale.hsn_sac.toUpperCase(),
       quantity: newSale.quantity,
       unit: newSale.unit.toUpperCase(),
-      rate: base_and_tax.rate,
-      cgst: base_and_tax.cgst,
-      sgst: base_and_tax.sgst,
+      rate: rate,
+      cgst: cgst,
+      sgst: sgst,
+      gst_rate: newSale.gst_rate,
       total_amount: newSale.total_amount,
       selling_partner: newSale.selling_partner.toUpperCase(),
       is_done: false,
@@ -190,37 +169,84 @@
     };
 
     let insertError = false;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 3;
 
-    // If inventory product, add product_item and update stock
-    if (!showManualProduct && newSale.product_item) {
-      saleData.product_item = newSale.product_item;
+    while (attempts < MAX_ATTEMPTS) {
+      // Get next invoice number per financial year
+      const saleDate = new Date(newSale.sale_date);
+      const year = saleDate.getFullYear();
+      const month = saleDate.getMonth();
+      const fyStart = month >= 3 ? year : year - 1;
+      const fyEnd = (fyStart + 1) % 100;
+      const fyString = `${fyStart}-${fyEnd.toString().padStart(2, '0')}`;
+
+      const { data: existingInvoices } = await supabase
+        .from('sales')
+        .select('invoice_number')
+        .like('invoice_number', `MAHADEV-${fyString}-%`)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      let nextNum = 1;
+      if (existingInvoices && existingInvoices.length > 0) {
+        const lastInvoice = existingInvoices[0].invoice_number;
+        const lastNum = parseInt(lastInvoice.split('-').pop() || '0', 10);
+        nextNum = lastNum + 1;
+      }
       
-      const { error } = await supabase.from('sales').insert(saleData);
+      const invoice_number = `MAHADEV-${fyString}-${nextNum.toString().padStart(3, '0')}`;
 
-      if (error) {
-        console.error('Sale insert error:', error);
-        alert('Error adding sale: ' + error.message);
-        insertError = true;
-      } else {
-        // Update stock
-        const product = inventory.find(i => i.id === newSale.product_item);
-        if (product) {
-          await supabase.from('inventory')
-            .update({ quantity: product.quantity - newSale.quantity })
-            .eq('id', newSale.product_item);
+      saleData.invoice_number = invoice_number;
+
+      // If inventory product, add product_item and update stock
+      if (!showManualProduct && newSale.product_item) {
+        saleData.product_item = newSale.product_item;
+        
+        const { error } = await supabase.from('sales').insert(saleData);
+
+        if (error) {
+          console.error('Sale insert error (attempt ' + (attempts + 1) + '):', error);
+          if (error.code === '23505') { // Postgres unique constraint violation
+            attempts++;
+            continue; // Retry
+          }
+          alert('Error adding sale: ' + error.message);
+          insertError = true;
+          break;
+        } else {
+          // Update stock
+          const product = inventory.find(i => i.id === newSale.product_item);
+          if (product) {
+            await supabase.from('inventory')
+              .update({ quantity: product.quantity - newSale.quantity })
+              .eq('id', newSale.product_item);
+          }
+          break; // Success
         }
+      } else {
+        // Manual product - store product name
+        saleData.product_name = newSale.product_name;
+        
+        const { error } = await supabase.from('sales').insert(saleData);
+        
+        if (error) {
+          console.error('Sale insert error (attempt ' + (attempts + 1) + '):', error);
+          if (error.code === '23505') {
+            attempts++;
+            continue; // Retry
+          }
+          alert('Error adding sale: ' + error.message);
+          insertError = true;
+          break;
+        }
+        break; // Success
       }
-    } else {
-      // Manual product - store product name
-      saleData.product_name = newSale.product_name;
-      
-      const { error } = await supabase.from('sales').insert(saleData);
-      
-      if (error) {
-        console.error('Sale insert error:', error);
-        alert('Error adding sale: ' + error.message);
-        insertError = true;
-      }
+    }
+
+    if (attempts >= MAX_ATTEMPTS) {
+      alert('Failed to generate a unique invoice number after multiple attempts. Please try again.');
+      insertError = true;
     }
 
     if (!insertError) {
@@ -376,7 +402,7 @@
         doc.line(colMid, y, colMid, y + 40);
         const rightCol = colMid + (contentWidth / 4);
         
-        doc.text('Voucher No.', colMid + 2, y + 4);
+        doc.text('Bill No.', colMid + 2, y + 4);
         doc.text('Dated', rightCol + 2, y + 4);
         doc.setFont('helvetica', 'bold');
         doc.text(formatInvoiceDisplay(sale), colMid + 2, y + 8);
@@ -566,20 +592,23 @@
     if (!editingSale) return;
 
     // Recalculate totals
-    const totalBase = editingSale.quantity * editingSale.rate;
-    const cgst = (totalBase * (editingSale.gst_rate / 2)) / 100;
-    const sgst = (totalBase * (editingSale.gst_rate / 2)) / 100;
-    const total = totalBase + cgst + sgst;
+    const gst = editingSale.gst_rate / 100;
+    // total = base + base * gst => base = total / (1 + gst)
+    const base = editingSale.total_amount / (1 + gst);
+    const tax = editingSale.total_amount - base;
+    const cgst = tax / 2;
+    const sgst = tax / 2;
+    const rate = editingSale.quantity > 0 ? base / editingSale.quantity : 0;
 
     const updateData: any = {
       customer_id: editingSale.customer_id,
       hsn_sac: editingSale.hsn_sac,
       quantity: editingSale.quantity,
       unit: editingSale.unit,
-      rate: editingSale.rate,
+      rate: rate,
       cgst,
       sgst,
-      total_amount: total,
+      total_amount: editingSale.total_amount,
       selling_partner: editingSale.selling_partner,
       sales_date: editingSale.sales_date,
       payment_mode: editingSale.payment_mode,
@@ -714,6 +743,19 @@
       </div>
 
       <div class="input-group">
+        <label>Calculated Rate (₹)</label>
+        <input type="text" value={(newSale.quantity > 0 ? (newSale.total_amount / (1 + newSale.gst_rate / 100)) / newSale.quantity : 0).toFixed(2)} disabled />
+      </div>
+      <div class="input-group">
+        <label>CGST (₹)</label>
+        <input type="text" value={((newSale.total_amount - (newSale.total_amount / (1 + newSale.gst_rate / 100))) / 2).toFixed(2)} disabled />
+      </div>
+      <div class="input-group">
+        <label>SGST (₹)</label>
+        <input type="text" value={((newSale.total_amount - (newSale.total_amount / (1 + newSale.gst_rate / 100))) / 2).toFixed(2)} disabled />
+      </div>
+
+      <div class="input-group">
         <label>Sale Date</label>
         <input type="date" bind:value={newSale.sale_date} />
       </div>
@@ -789,6 +831,16 @@
         </div>
 
         <div class="input-group">
+          <label>Customer</label>
+          <select bind:value={editingSale.customer_id}>
+            <option value="">Select Customer</option>
+            {#each customers as customer}
+              <option value={customer.id}>{customer.name}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div class="input-group">
           <label>HSN/SAC Number</label>
           <input type="text" bind:value={editingSale.hsn_sac} placeholder="Enter HSN/SAC code" />
         </div>
@@ -828,8 +880,8 @@
         </div>
 
         <div class="input-group">
-          <label>Rate</label>
-          <input type="number" bind:value={editingSale.rate} step="0.01" />
+          <label>Rate (₹)</label>
+          <input type="text" value={(editingSale.quantity > 0 ? (editingSale.total_amount / (1 + editingSale.gst_rate / 100)) / editingSale.quantity : 0).toFixed(2)} disabled />
         </div>
 
         <div class="input-group">
@@ -841,6 +893,20 @@
             <option value={18}>18% (9% CGST + 9% SGST)</option>
             <option value={28}>28% (14% CGST + 14% SGST)</option>
           </select>
+        </div>
+
+        <div class="input-group">
+          <label>Total Amount (₹)</label>
+          <input type="number" bind:value={editingSale.total_amount} step="0.01" />
+        </div>
+
+        <div class="input-group">
+          <label>CGST (₹)</label>
+          <input type="text" value={((editingSale.total_amount - (editingSale.total_amount / (1 + editingSale.gst_rate / 100))) / 2).toFixed(2)} disabled />
+        </div>
+        <div class="input-group">
+          <label>SGST (₹)</label>
+          <input type="text" value={((editingSale.total_amount - (editingSale.total_amount / (1 + editingSale.gst_rate / 100))) / 2).toFixed(2)} disabled />
         </div>
 
         <div class="input-group">
